@@ -1,0 +1,212 @@
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useNavigate, useParams } from 'react-router-dom'
+import { BilingualText } from '@shared/components/BilingualText'
+import { dictionary } from '@shared/i18n'
+import { useDuplicatePhoneCheck } from '@shared/hooks/useDuplicatePhoneCheck'
+import { normalizePhone } from '@shared/lib/phone'
+import { logActivity } from '@shared/lib/activityLog'
+
+const customerFormSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  phone: z
+    .string()
+    .trim()
+    .min(1, 'Phone is required')
+    .refine((value) => normalizePhone(value).length >= 7, 'Enter a valid phone number'),
+  address: z.string().trim().optional(),
+  notes: z.string().trim().optional()
+})
+
+type CustomerFormValues = z.infer<typeof customerFormSchema>
+
+const inputClass =
+  'rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20'
+
+export function CustomerFormPage() {
+  const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>()
+  const isEdit = Boolean(id)
+
+  const [loading, setLoading] = useState(isEdit)
+  const [loadError, setLoadError] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors, isSubmitting }
+  } = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerFormSchema),
+    defaultValues: { name: '', phone: '', address: '', notes: '' }
+  })
+
+  useEffect(() => {
+    if (!id) return
+    window.api.customers.getById(id).then((customer) => {
+      if (!customer) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
+      reset({
+        name: customer.name,
+        phone: customer.phone,
+        address: customer.address ?? '',
+        notes: customer.notes ?? ''
+      })
+      setLoading(false)
+    })
+  }, [id, reset])
+
+  const phoneValue = watch('phone')
+  const duplicate = useDuplicatePhoneCheck(phoneValue, id)
+
+  const onSubmit = handleSubmit(async (values) => {
+    if (duplicate) return
+    setSubmitError(null)
+
+    const payload = {
+      name: values.name.trim(),
+      phone: normalizePhone(values.phone),
+      address: values.address?.trim() || null,
+      notes: values.notes?.trim() || null
+    }
+
+    try {
+      if (isEdit && id) {
+        const updated = await window.api.customers.update(id, payload)
+        if (!updated) {
+          setSubmitError('Could not save customer. Please try again.')
+          return
+        }
+        logActivity({
+          actionType: 'update',
+          entityType: 'customer',
+          entityId: updated.id,
+          description: `Customer "${updated.name}" updated`
+        })
+        navigate(`/customers/${updated.id}`, { replace: true })
+      } else {
+        const created = await window.api.customers.create(payload)
+        logActivity({
+          actionType: 'create',
+          entityType: 'customer',
+          entityId: created.id,
+          description: `Customer "${created.name}" created`
+        })
+        navigate(`/customers/${created.id}`, { replace: true })
+      }
+    } catch {
+      setSubmitError('Could not save customer. Please try again.')
+    }
+  })
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <BilingualText text={dictionary.common.loading} size="sm" className="items-center text-ink-muted" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
+        <BilingualText text={dictionary.customers.notFound} as="div" size="lg" className="items-center" />
+        <button type="button" onClick={() => navigate('/customers')} className="text-primary hover:underline">
+          <BilingualText text={dictionary.customers.backToList} size="sm" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex max-w-lg flex-1 flex-col">
+      <BilingualText
+        text={isEdit ? dictionary.customers.editCustomer : dictionary.customers.addNew}
+        as="div"
+        size="xl"
+        className="mb-xl"
+      />
+
+      <form
+        onSubmit={onSubmit}
+        noValidate
+        className="flex flex-col gap-md rounded-lg border border-border/60 bg-surface p-xl shadow-card"
+      >
+        {submitError && (
+          <p role="alert" className="rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
+            {submitError}
+          </p>
+        )}
+
+        <label className="flex flex-col gap-1">
+          <BilingualText text={dictionary.customers.name} size="sm" className="text-ink-muted" />
+          <input type="text" autoFocus className={inputClass} {...register('name')} />
+          {errors.name && <span className="text-xs text-danger">{errors.name.message}</span>}
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <BilingualText text={dictionary.customers.phone} size="sm" className="text-ink-muted" />
+          <input type="tel" className={inputClass} {...register('phone')} />
+          {errors.phone && <span className="text-xs text-danger">{errors.phone.message}</span>}
+        </label>
+
+        {duplicate && (
+          <div className="rounded-md bg-warning/10 p-sm text-warning">
+            <BilingualText text={dictionary.customers.duplicateTitle} as="div" size="sm" className="font-medium" />
+            <BilingualText text={dictionary.customers.duplicateBody} size="sm" className="mt-1" />
+            <p className="mt-0.5 text-sm font-medium">
+              {duplicate.name} ({duplicate.phone})
+            </p>
+            {!duplicate.isDeleted ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/customers/${duplicate.id}`)}
+                className="mt-2 underline"
+              >
+                <BilingualText text={dictionary.customers.openProfile} size="sm" />
+              </button>
+            ) : (
+              <div className="mt-1">
+                <BilingualText text={dictionary.customers.duplicateArchived} size="sm" />
+              </div>
+            )}
+          </div>
+        )}
+
+        <label className="flex flex-col gap-1">
+          <BilingualText text={dictionary.customers.address} size="sm" className="text-ink-muted" />
+          <input type="text" className={inputClass} {...register('address')} />
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <BilingualText text={dictionary.customers.notes} size="sm" className="text-ink-muted" />
+          <textarea rows={3} className={inputClass} {...register('notes')} />
+        </label>
+
+        <div className="mt-sm flex justify-end gap-sm">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-md px-md py-sm text-ink-muted transition-colors hover:bg-surface-raised"
+          >
+            <BilingualText text={dictionary.customers.cancel} size="sm" />
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting || Boolean(duplicate)}
+            className="rounded-md bg-primary px-md py-sm text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-60"
+          >
+            <BilingualText text={dictionary.customers.save} size="sm" />
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
