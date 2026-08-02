@@ -5,6 +5,8 @@ import { CustomersPage } from '@features/customers/CustomersPage'
 import { CustomerFormPage } from '@features/customers/CustomerFormPage'
 import { CustomerDetailPage } from '@features/customers/CustomerDetailPage'
 import { RepairsPage } from '@features/repairs/RepairsPage'
+import { RepairFormPage } from '@features/repairs/RepairFormPage'
+import { RepairDetailPage } from '@features/repairs/RepairDetailPage'
 import { PaymentsPage } from '@features/payments/PaymentsPage'
 import { ExpensesPage } from '@features/expenses/ExpensesPage'
 import { ReportsPage } from '@features/reports/ReportsPage'
@@ -33,6 +35,9 @@ export function AppRoutes() {
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/customers/:id/edit" element={<CustomerFormPage />} />
         <Route path="/repairs" element={<RepairsPage />} />
+        <Route path="/repairs/new" element={<RepairFormPage />} />
+        <Route path="/repairs/:id" element={<RepairDetailPage />} />
+        <Route path="/repairs/:id/edit" element={<RepairFormPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/reports" element={<ReportsPage />} />

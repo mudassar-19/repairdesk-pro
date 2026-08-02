@@ -8,6 +8,13 @@ import type {
   NewCustomerInput,
   UpdateCustomerInput
 } from '../main/db/repositories/customerRepository'
+import type {
+  Repair,
+  RepairWithCustomer,
+  RepairFilters,
+  NewRepairInput,
+  UpdateRepairInput
+} from '../main/db/repositories/repairRepository'
 
 /**
  * The entire renderer-facing API surface. contextIsolation is on and
@@ -34,6 +41,17 @@ const api = {
     update: (id: string, patch: UpdateCustomerInput): Promise<Customer | null> =>
       ipcRenderer.invoke('customers:update', id, patch),
     softDelete: (id: string): Promise<Customer | null> => ipcRenderer.invoke('customers:softDelete', id)
+  },
+  repairs: {
+    list: (filters?: RepairFilters): Promise<Repair[]> => ipcRenderer.invoke('repairs:list', filters),
+    listWithCustomer: (filters?: RepairFilters & { search?: string }): Promise<RepairWithCustomer[]> =>
+      ipcRenderer.invoke('repairs:listWithCustomer', filters),
+    getById: (id: string): Promise<Repair | null> => ipcRenderer.invoke('repairs:getById', id),
+    listBrands: (): Promise<string[]> => ipcRenderer.invoke('repairs:listBrands'),
+    create: (input: NewRepairInput): Promise<Repair> => ipcRenderer.invoke('repairs:create', input),
+    update: (id: string, patch: UpdateRepairInput): Promise<Repair | null> =>
+      ipcRenderer.invoke('repairs:update', id, patch),
+    softDelete: (id: string): Promise<Repair | null> => ipcRenderer.invoke('repairs:softDelete', id)
   }
 }
 

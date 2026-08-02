@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte, like, lte, or } from 'drizzle-orm'
+import { getTableColumns } from 'drizzle-orm/utils'
 import type { AppDatabase } from '../client'
-import { repairs, type RepairStatus, type RepairPriority } from '../schema'
+import { repairs, customers, type RepairStatus, type RepairPriority } from '../schema'
 
 export type Repair = typeof repairs.$inferSelect
+export type RepairWithCustomer = Repair & { customerName: string; customerPhone: string }
 
 export interface NewRepairInput {
   customerId: string
@@ -27,6 +29,11 @@ export type UpdateRepairInput = Partial<NewRepairInput>
 export interface RepairFilters {
   customerId?: string
   status?: RepairStatus
+  /** Exact device brand match, for the Repair List's brand filter. */
+  brand?: string
+  /** Inclusive createdAt range, ISO strings — powers the Today/This Week/This Month/Custom presets in the UI. */
+  dateFrom?: string
+  dateTo?: string
   includeDeleted?: boolean
 }
 
@@ -72,11 +79,38 @@ export class RepairRepository {
   }
 
   findAll(filters: RepairFilters = {}): Repair[] {
-    const conditions = filters.includeDeleted ? [] : [eq(repairs.isDeleted, false)]
-    if (filters.customerId) conditions.push(eq(repairs.customerId, filters.customerId))
-    if (filters.status) conditions.push(eq(repairs.status, filters.status))
-
+    const conditions = this.buildConditions(filters)
     const query = this.db.select().from(repairs)
+    return conditions.length ? query.where(and(...conditions)).all() : query.all()
+  }
+
+  /**
+   * Same filters as findAll, plus a free-text search across device
+   * brand/model, repair id, IMEI, and the linked customer's name/phone — the
+   * Repair List needs the customer columns anyway, so this is a real SQL
+   * join rather than a second app-level lookup.
+   */
+  findAllWithCustomer(filters: RepairFilters & { search?: string } = {}): RepairWithCustomer[] {
+    const conditions = this.buildConditions(filters)
+    if (filters.search) {
+      const term = `%${filters.search}%`
+      conditions.push(
+        or(
+          like(repairs.deviceBrand, term),
+          like(repairs.deviceModel, term),
+          like(repairs.id, term),
+          like(repairs.imei, term),
+          like(customers.name, term),
+          like(customers.phone, term)
+        )!
+      )
+    }
+
+    const query = this.db
+      .select({ ...getTableColumns(repairs), customerName: customers.name, customerPhone: customers.phone })
+      .from(repairs)
+      .innerJoin(customers, eq(repairs.customerId, customers.id))
+
     return conditions.length ? query.where(and(...conditions)).all() : query.all()
   }
 
@@ -101,6 +135,16 @@ export class RepairRepository {
     return row ?? null
   }
 
+  /** Populates the Repair List's brand filter dropdown from what's actually in use. */
+  listDistinctBrands(): string[] {
+    const rows = this.db
+      .selectDistinct({ brand: repairs.deviceBrand })
+      .from(repairs)
+      .where(eq(repairs.isDeleted, false))
+      .all()
+    return rows.map((row) => row.brand).sort()
+  }
+
   softDelete(id: string): Repair | null {
     const row = this.db
       .update(repairs)
@@ -109,5 +153,15 @@ export class RepairRepository {
       .returning()
       .get()
     return row ?? null
+  }
+
+  private buildConditions(filters: RepairFilters) {
+    const conditions = filters.includeDeleted ? [] : [eq(repairs.isDeleted, false)]
+    if (filters.customerId) conditions.push(eq(repairs.customerId, filters.customerId))
+    if (filters.status) conditions.push(eq(repairs.status, filters.status))
+    if (filters.brand) conditions.push(eq(repairs.deviceBrand, filters.brand))
+    if (filters.dateFrom) conditions.push(gte(repairs.createdAt, filters.dateFrom))
+    if (filters.dateTo) conditions.push(lte(repairs.createdAt, filters.dateTo))
+    return conditions
   }
 }

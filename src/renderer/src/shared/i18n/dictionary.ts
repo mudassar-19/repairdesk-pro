@@ -45,8 +45,8 @@ export const dictionary = {
     repairHistory: { en: 'Repair History', ur: 'مرمت کی تاریخ' },
     noRepairsYet: { en: 'No repairs yet', ur: 'ابھی کوئی مرمت نہیں' },
     noRepairsYetBody: {
-      en: 'Repairs for this customer will show up here once the Repairs module is built.',
-      ur: 'مرمت ماڈیول بننے کے بعد اس گاہک کی مرمتیں یہاں نظر آئیں گی۔'
+      en: 'Repair orders for this customer will show up here.',
+      ur: 'اس گاہک کے مرمت آرڈر یہاں نظر آئیں گے۔'
     },
     emptyTitle: { en: 'No customers yet', ur: 'ابھی کوئی گاہک نہیں' },
     emptyBody: {
@@ -80,6 +80,71 @@ export const dictionary = {
     changeCustomer: { en: 'Change', ur: 'تبدیل کریں' },
     notFound: { en: 'Customer not found', ur: 'گاہک نہیں ملا' },
     backToList: { en: 'Back to customers', ur: 'گاہکوں کی فہرست پر واپس جائیں' }
+  },
+  repairs: {
+    addNew: { en: 'New Repair Order', ur: 'نیا مرمت آرڈر' },
+    editRepair: { en: 'Edit Repair Order', ur: 'مرمت آرڈر میں ترمیم کریں' },
+    searchPlaceholder: {
+      en: 'Search by customer, phone, device, IMEI, or ID',
+      ur: 'گاہک، فون، ڈیوائس، آئی ایم ای آئی یا آئی ڈی سے تلاش کریں'
+    },
+    customer: { en: 'Customer', ur: 'گاہک' },
+    deviceBrand: { en: 'Device Brand', ur: 'ڈیوائس برانڈ' },
+    deviceModel: { en: 'Device Model', ur: 'ڈیوائس ماڈل' },
+    issue: { en: 'Issue', ur: 'مسئلہ' },
+    accessories: { en: 'Accessories', ur: 'لوازمات' },
+    imei: { en: 'IMEI', ur: 'آئی ایم ای آئی' },
+    estimatedDeliveryDate: { en: 'Estimated Delivery Date', ur: 'متوقع ڈیلیوری تاریخ' },
+    deliveryTime: { en: 'Delivery Time', ur: 'ڈیلیوری وقت' },
+    costPrice: { en: 'Cost Price', ur: 'لاگت قیمت' },
+    repairPrice: { en: 'Repair Price', ur: 'مرمت قیمت' },
+    advanceAmount: { en: 'Advance Amount', ur: 'ایڈوانس رقم' },
+    remainingBalance: { en: 'Remaining Balance', ur: 'باقی رقم' },
+    priority: { en: 'Priority', ur: 'ترجیح' },
+    priorityLow: { en: 'Low', ur: 'کم' },
+    priorityNormal: { en: 'Normal', ur: 'عام' },
+    priorityHigh: { en: 'High', ur: 'زیادہ' },
+    notes: { en: 'Notes', ur: 'نوٹس' },
+    status: { en: 'Status', ur: 'حالت' },
+    statusPending: { en: 'Pending', ur: 'زیر التواء' },
+    statusWaitingForParts: { en: 'Waiting for Parts', ur: 'پرزوں کا انتظار' },
+    statusInProgress: { en: 'In Progress', ur: 'جاری ہے' },
+    statusReadyForPickup: { en: 'Ready for Pickup', ur: 'وصولی کے لیے تیار' },
+    statusCompleted: { en: 'Completed', ur: 'مکمل' },
+    statusCancelled: { en: 'Cancelled', ur: 'منسوخ' },
+    changeStatus: { en: 'Change Status', ur: 'حالت تبدیل کریں' },
+    printReceipt: { en: 'Print Receipt', ur: 'رسید پرنٹ کریں' },
+    recordPayment: { en: 'Record Payment', ur: 'ادائیگی درج کریں' },
+    viewCustomerProfile: { en: 'View Customer Profile', ur: 'گاہک کی پروفائل دیکھیں' },
+    filterStatus: { en: 'Status', ur: 'حالت' },
+    filterBrand: { en: 'Brand', ur: 'برانڈ' },
+    filterDateRange: { en: 'Date Range', ur: 'تاریخ کی حد' },
+    allStatuses: { en: 'All Statuses', ur: 'تمام حالتیں' },
+    allBrands: { en: 'All Brands', ur: 'تمام برانڈز' },
+    dateToday: { en: 'Today', ur: 'آج' },
+    dateThisWeek: { en: 'This Week', ur: 'اس ہفتے' },
+    dateThisMonth: { en: 'This Month', ur: 'اس مہینے' },
+    dateCustom: { en: 'Custom', ur: 'اپنی مرضی' },
+    dateAll: { en: 'All Time', ur: 'ہر وقت' },
+    dateFrom: { en: 'From', ur: 'سے' },
+    dateTo: { en: 'To', ur: 'تک' },
+    emptyTitle: { en: 'No repair orders yet', ur: 'ابھی کوئی مرمت آرڈر نہیں' },
+    emptyBody: {
+      en: 'Create your first repair order to get started.',
+      ur: 'شروع کرنے کے لیے اپنا پہلا مرمت آرڈر بنائیں۔'
+    },
+    noMatches: { en: 'No matching repair orders', ur: 'کوئی مماثل مرمت آرڈر نہیں' },
+    save: { en: 'Save', ur: 'محفوظ کریں' },
+    cancel: { en: 'Cancel', ur: 'منسوخ کریں' },
+    edit: { en: 'Edit', ur: 'ترمیم کریں' },
+    delete: { en: 'Delete', ur: 'حذف کریں' },
+    deleteConfirmTitle: { en: 'Delete this repair order?', ur: 'کیا اس مرمت آرڈر کو حذف کریں؟' },
+    deleteConfirmBody: {
+      en: 'It will no longer appear in repair lists or search.',
+      ur: 'یہ اب مرمت کی فہرست یا تلاش میں نظر نہیں آئے گا۔'
+    },
+    notFound: { en: 'Repair order not found', ur: 'مرمت آرڈر نہیں ملا' },
+    backToList: { en: 'Back to repair orders', ur: 'مرمت آرڈرز کی فہرست پر واپس جائیں' }
   },
   common: {
     loading: { en: 'Loading…', ur: 'لوڈ ہو رہا ہے…' },

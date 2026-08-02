@@ -8,6 +8,7 @@ import { registerSystemIpc } from './ipc/system'
 import { registerAuthIpc } from './ipc/auth'
 import { registerActivityIpc } from './ipc/activity'
 import { registerCustomersIpc } from './ipc/customers'
+import { registerRepairsIpc } from './ipc/repairs'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -46,6 +47,7 @@ app.whenReady().then(() => {
   registerAuthIpc()
   registerActivityIpc()
   registerCustomersIpc()
+  registerRepairsIpc()
 
   if (is.dev) {
     seedDevData(db)
