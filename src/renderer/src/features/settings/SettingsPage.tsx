@@ -3,9 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { firebaseAuth } from '@shared/lib/firebase'
 import { BilingualText } from '@shared/components/BilingualText'
-import { EmptyState } from '@shared/components/EmptyState'
+import { Button } from '@shared/components/Button'
+import { PageHeader } from '@shared/components/PageHeader'
 import { dictionary } from '@shared/i18n'
 import { useAuthStore } from '@shared/hooks/useAuthStore'
+import { BrandingSection } from './BrandingSection'
+import { ReceiptSettingsSection } from './ReceiptSettingsSection'
+import { BackupSettingsSection } from './BackupSettingsSection'
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -36,24 +40,20 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <BilingualText text={dictionary.nav.settings} as="div" size="xl" className="mb-xl" />
+      <PageHeader
+        title={dictionary.nav.settings}
+        action={
+          <Button variant="danger-ghost" onClick={handleLogout} disabled={loggingOut}>
+            <BilingualText text={dictionary.settings.logout} size="sm" align="center" />
+          </Button>
+        }
+      />
 
-      <div className="mb-xl flex items-center justify-between rounded-lg border border-border/60 bg-surface p-lg shadow-card">
-        <div>
-          <p className="text-sm text-ink-muted">{dictionary.settings.loggedInAs.en}</p>
-          <p className="text-base font-medium text-ink">{user?.email ?? '—'}</p>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="rounded-md bg-danger/10 px-md py-sm text-sm font-medium text-danger transition-colors hover:bg-danger/20 disabled:opacity-60"
-        >
-          <BilingualText text={dictionary.settings.logout} size="sm" className="items-center" />
-        </button>
+      <div className="flex flex-col gap-xl">
+        <BrandingSection />
+        <ReceiptSettingsSection />
+        <BackupSettingsSection />
       </div>
-
-      <EmptyState />
     </div>
   )
 }
