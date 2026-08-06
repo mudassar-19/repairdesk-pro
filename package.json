@@ -1,9 +1,9 @@
 {
-  "name": "repairdesk-pro",
+  "name": "repairdex-pro",
   "version": "0.1.0",
-  "description": "RepairDesk Pro — offline-first desktop ERP for mobile repair shops",
+  "description": "RepairDex Pro — offline-first desktop ERP for mobile repair shops",
   "main": "./out/main/index.js",
-  "author": "RepairDesk Pro",
+  "author": "RepairDex Pro",
   "private": true,
   "type": "commonjs",
   "scripts": {
@@ -55,8 +55,8 @@
     "vite": "^5.4.11"
   },
   "build": {
-    "appId": "com.repairdesk.pro",
-    "productName": "RepairDesk Pro",
+    "appId": "com.repairdex.pro",
+    "productName": "RepairDex Pro",
     "directories": {
       "output": "release",
       "buildResources": "build"

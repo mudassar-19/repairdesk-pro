@@ -7,7 +7,7 @@ import type { BilingualString } from './types'
  */
 export const dictionary = {
   app: {
-    name: { en: 'RepairDesk Pro', ur: 'ریپیئر ڈیسک پرو' }
+    name: { en: 'RepairDex Pro', ur: 'ریپیئر ڈیکس پرو' }
   },
   nav: {
     dashboard: { en: 'Dashboard', ur: 'ڈیش بورڈ' },
