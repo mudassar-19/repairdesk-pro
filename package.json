@@ -6,6 +6,9 @@
   "author": "RepairDex Pro",
   "private": true,
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  },
   "scripts": {
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "dev": "electron-vite dev",
@@ -69,19 +72,28 @@
     ],
     "win": {
       "target": [
-        "zip"
+        "nsis"
       ],
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "mac": {
       "target": [
         "dir"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "linux": {
       "target": [
         "dir"
-      ]
+      ],
+      "icon": "build/icon.png"
     }
   }
 }

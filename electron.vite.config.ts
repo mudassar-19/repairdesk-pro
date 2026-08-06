@@ -20,9 +20,28 @@ function copyMigrationsPlugin(): Plugin {
   }
 }
 
+/**
+ * build/icon.png is electron-builder's source for the packaged app's
+ * icon (auto-converted to .icns/.ico at package time) — it isn't otherwise
+ * part of the source tree Rollup bundles. Copying it next to out/main/index.js
+ * makes the same file available at runtime too, for BrowserWindow's own
+ * `icon` option (the window/taskbar icon while the app is actually running,
+ * in both dev and packaged builds — a separate concern from the packaged
+ * app's installer/dock icon).
+ */
+function copyIconPlugin(): Plugin {
+  return {
+    name: 'copy-icon',
+    closeBundle() {
+      const src = resolve('build/icon.png')
+      if (existsSync(src)) cpSync(src, resolve('out/main/icon.png'))
+    }
+  }
+}
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), copyMigrationsPlugin()],
+    plugins: [externalizeDepsPlugin(), copyMigrationsPlugin(), copyIconPlugin()],
     resolve: {
       alias: {
         '@main': resolve('src/main')
