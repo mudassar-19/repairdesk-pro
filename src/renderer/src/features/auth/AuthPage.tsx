@@ -7,8 +7,9 @@ import { firebaseAuth } from '@shared/lib/firebase'
 import { BilingualText } from '@shared/components/BilingualText'
 import { dictionary } from '@shared/i18n'
 import { useAuthStore } from '@shared/hooks/useAuthStore'
-import { registerDevice } from './lib/registerDevice'
+import { Button } from '@shared/components/Button'
 import { describeAuthError } from './lib/authErrors'
+import repairdeskLogo from '../../assets/images/repairdesk-logo.png'
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
@@ -62,18 +63,14 @@ export function AuthPage() {
 
       // Auth is fully established the moment the encrypted session is on
       // disk — flip state right here so the Dashboard redirect fires
-      // immediately. Device registration and activity logging are
-      // auxiliary side effects (Firestore write, local log entry); neither
-      // is awaited in the critical path, and neither can throw into the
-      // catch below and strand the user on this screen after the real
-      // work already succeeded — that mismatch (session saved, but a
+      // immediately. Activity logging is an auxiliary side effect (local log
+      // entry only); it isn't awaited in the critical path, and can't throw
+      // into the catch below and strand the user on this screen after the
+      // real work already succeeded — that mismatch (session saved, but a
       // later best-effort step throwing before setAuthenticated ran) was
       // the actual bug.
       if (mountedRef.current) setAuthenticated({ uid: credential.user.uid, email: credential.user.email ?? email }, deviceId)
 
-      registerDevice(credential.user.uid, deviceId).catch(() => {
-        // Best-effort — the device directory doesn't gate login.
-      })
       window.api
         .logActivity({
           actionType: 'login',
@@ -91,62 +88,70 @@ export function AuthPage() {
   })
 
   return (
-    <div className="flex min-h-screen w-screen items-center justify-center bg-bg p-lg">
-      <div className="w-full max-w-sm rounded-lg border border-border/60 bg-surface p-xl shadow-raised">
-        <div className="mb-lg flex flex-col items-center text-center">
-          <span className="mb-md flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary">
-            RD
-          </span>
-          <BilingualText text={dictionary.app.name} as="div" size="lg" className="items-center" />
-          <BilingualText text={dictionary.auth.tagline} as="div" size="sm" className="mt-xs items-center text-ink-muted" />
+    <div className="relative flex min-h-screen w-screen items-center justify-center overflow-hidden bg-bg p-lg">
+      {/* Soft decorative glows only — stays within the light theme, no bold color blocks or dark backgrounds. */}
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-48 -right-32 h-[32rem] w-[32rem] rounded-full bg-primary/5 blur-3xl" />
+
+      <div className="relative grid w-full max-w-4xl overflow-hidden rounded-lg border border-border/60 bg-surface shadow-raised md:grid-cols-2">
+        {/* Branding panel — primary-tint (a near-white teal tint) rather than a solid brand color, since the logo's own background isn't transparent and would show as a visible box on anything darker. */}
+        <div className="hidden flex-col items-center justify-center gap-xl bg-primary-tint p-2xl md:flex">
+          <img src={repairdeskLogo} alt={dictionary.app.name.en} className="w-full max-w-[300px]" />
+          <BilingualText text={dictionary.auth.tagline} as="div" size="lg" className="items-center text-center text-ink" />
         </div>
 
-        <form onSubmit={onSubmit} noValidate className="flex flex-col gap-md">
-          {formError && (
-            <p role="alert" className="rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
-              {formError}
-            </p>
-          )}
+        {/* Form panel */}
+        <div className="flex flex-col justify-center p-2xl">
+          <div className="mb-xl flex flex-col items-center text-center md:hidden">
+            <img src={repairdeskLogo} alt={dictionary.app.name.en} className="mb-md w-full max-w-[220px]" />
+            <BilingualText text={dictionary.auth.tagline} as="div" size="sm" className="items-center text-ink-muted" />
+          </div>
 
-          <label className="flex flex-col gap-1">
-            <BilingualText text={dictionary.auth.email} size="sm" className="text-ink-muted" />
-            <input
-              type="email"
-              autoComplete="email"
-              aria-invalid={Boolean(errors.email)}
-              className="rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-              {...register('email')}
-            />
-            {errors.email && <span className="text-xs text-danger">{errors.email.message}</span>}
-          </label>
+          <BilingualText text={dictionary.auth.signIn} as="div" size="xl" className="mb-xl" />
 
-          <label className="flex flex-col gap-1">
-            <BilingualText text={dictionary.auth.password} size="sm" className="text-ink-muted" />
-            <input
-              type="password"
-              autoComplete="current-password"
-              aria-invalid={Boolean(errors.password)}
-              className="rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-              {...register('password')}
-            />
-            {errors.password && <span className="text-xs text-danger">{errors.password.message}</span>}
-          </label>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-xs flex items-center justify-center gap-sm rounded-md bg-primary px-md py-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-70"
-          >
-            {isSubmitting && (
-              <span className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-primary-ink/30 border-t-primary-ink" />
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-md">
+            {formError && (
+              <p role="alert" className="rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
+                {formError}
+              </p>
             )}
-            <BilingualText
-              text={isSubmitting ? dictionary.auth.loggingIn : dictionary.auth.submit}
-              size="sm"
-              className="items-center"
-            />
-          </button>
-        </form>
+
+            <label className="flex flex-col gap-1">
+              <BilingualText text={dictionary.auth.email} size="sm" className="text-ink-muted" />
+              <input
+                type="email"
+                autoComplete="email"
+                aria-invalid={Boolean(errors.email)}
+                className="rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                {...register('email')}
+              />
+              {errors.email && <span className="text-xs text-danger">{errors.email.message}</span>}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <BilingualText text={dictionary.auth.password} size="sm" className="text-ink-muted" />
+              <input
+                type="password"
+                autoComplete="current-password"
+                aria-invalid={Boolean(errors.password)}
+                className="rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                {...register('password')}
+              />
+              {errors.password && <span className="text-xs text-danger">{errors.password.message}</span>}
+            </label>
+
+            <Button type="submit" variant="primary" size="md" disabled={isSubmitting} className="mt-xs">
+              {isSubmitting && (
+                <span className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-primary-ink/30 border-t-primary-ink" />
+              )}
+              <BilingualText
+                text={isSubmitting ? dictionary.auth.loggingIn : dictionary.auth.submit}
+                size="sm"
+                align="center"
+              />
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   )
