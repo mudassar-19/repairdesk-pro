@@ -3,6 +3,7 @@ import { getDatabase } from '../db/client'
 import {
   CustomerRepository,
   type Customer,
+  type CustomerWithStats,
   type CustomerFilters,
   type NewCustomerInput,
   type UpdateCustomerInput
@@ -19,6 +20,11 @@ export function registerCustomersIpc(): void {
   const repo = () => new CustomerRepository(getDatabase())
 
   ipcMain.handle('customers:list', (_event, filters?: CustomerFilters): Customer[] => repo().findAll(filters))
+
+  ipcMain.handle(
+    'customers:listWithStats',
+    (_event, filters?: CustomerFilters): CustomerWithStats[] => repo().findAllWithStats(filters)
+  )
 
   ipcMain.handle('customers:getById', (_event, id: string): Customer | null => repo().findById(id))
 

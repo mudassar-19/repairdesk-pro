@@ -39,6 +39,10 @@ export function registerAuthIpc(): void {
     fs.writeFileSync(sessionPath(), encrypted)
   })
 
+  // Only clears the session marker — the local database itself is never
+  // touched on logout, since this app has one database per device, not per
+  // account: it's the same data before and after sign-out, ready for
+  // whoever logs in next.
   ipcMain.handle('auth:clearLocalSession', (): void => {
     if (fs.existsSync(sessionPath())) fs.unlinkSync(sessionPath())
   })
