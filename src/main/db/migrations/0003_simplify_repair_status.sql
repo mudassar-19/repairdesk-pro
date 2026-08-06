@@ -1,0 +1,16 @@
+-- Phase: simplify the 6-state repair status workflow to 4 states
+-- (pending, completed, delivered, cancelled). No column/type change is
+-- needed (status is a plain text column with no DB-level constraint) — this
+-- is a pure data migration for rows already using a value that no longer
+-- exists in the new model.
+--
+-- waiting_for_parts / in_progress / ready_for_pickup all collapse to
+-- pending: none of them mean "done" or "cancelled", so pending is the only
+-- correct destination — a shop owner can immediately re-triage them with
+-- the new "Mark as Completed" / "Cancel Order" actions.
+--
+-- completed and cancelled rows are already valid values in the new model
+-- and are left untouched. A pre-existing "completed" repair now means
+-- "work is done, awaiting the new Mark as Delivered action" — expected
+-- behavior per the new workflow, not a data loss.
+UPDATE `repairs` SET `status` = 'pending' WHERE `status` IN ('waiting_for_parts', 'in_progress', 'ready_for_pickup');

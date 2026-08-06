@@ -8,6 +8,48 @@
       "when": 1785655148077,
       "tag": "0000_sweet_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785667462077,
+      "tag": "0001_woozy_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785668389152,
+      "tag": "0002_secret_mikhail_rasputin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785681142174,
+      "tag": "0003_simplify_repair_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785741805974,
+      "tag": "0004_early_orphan",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785746721924,
+      "tag": "0005_good_wendigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1785783849725,
+      "tag": "0006_ordinary_ronan",
+      "breakpoints": true
     }
   ]
 }

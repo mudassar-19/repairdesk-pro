@@ -1,0 +1,1 @@
+CREATE INDEX `repairs_estimated_delivery_date_idx` ON `repairs` (`estimated_delivery_date`);

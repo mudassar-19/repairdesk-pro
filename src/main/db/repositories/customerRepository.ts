@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, like, or } from 'drizzle-orm'
-import type { AppDatabase } from '../client'
-import { customers } from '../schema'
+import { and, eq, like, or, sql } from 'drizzle-orm'
+import { getTableColumns } from 'drizzle-orm/utils'
+import type { Db } from '../client'
+import { customers, repairs } from '../schema'
+import { BaseRepository } from './baseRepository'
 
 export type Customer = typeof customers.$inferSelect
+export type CustomerWithStats = Customer & { repairCount: number; lastVisit: string | null }
 
 export interface NewCustomerInput {
   name: string
@@ -20,26 +23,29 @@ export interface CustomerFilters {
   includeDeleted?: boolean
 }
 
-export class CustomerRepository {
-  constructor(private readonly db: AppDatabase) {}
+export class CustomerRepository extends BaseRepository {
+  constructor(db: Db) {
+    super(db)
+  }
 
   create(input: NewCustomerInput): Customer {
     const now = new Date().toISOString()
-    return this.db
-      .insert(customers)
-      .values({
-        id: randomUUID(),
-        name: input.name,
-        phone: input.phone,
-        address: input.address ?? null,
-        notes: input.notes ?? null,
-        createdAt: now,
-        updatedAt: now,
-        syncStatus: 'pending',
-        isDeleted: false
-      })
-      .returning()
-      .get()
+    return this.write<Customer>((tx) =>
+      tx
+        .insert(customers)
+        .values({
+          id: randomUUID(),
+          name: input.name,
+          phone: input.phone,
+          address: input.address ?? null,
+          notes: input.notes ?? null,
+          createdAt: now,
+          updatedAt: now,
+          isDeleted: false
+        })
+        .returning()
+        .get()
+    )!
   }
 
   findById(id: string): Customer | null {
@@ -67,23 +73,55 @@ export class CustomerRepository {
     return conditions.length ? query.where(and(...conditions)).all() : query.all()
   }
 
+  /**
+   * Same filters as findAll, plus each customer's repair count and most
+   * recent repair date — for the Customers list's Total Repairs/Last Visit
+   * columns. A LEFT JOIN (not inner), so a customer with zero repairs still
+   * appears with repairCount 0 and lastVisit null instead of being dropped
+   * entirely — COUNT/MAX both correctly ignore the NULL repairs columns a
+   * LEFT JOIN produces for those rows. Soft-deleted repairs are excluded
+   * from both the count and the max so a deleted repair can't inflate a
+   * customer's count or resurrect as their "last visit."
+   */
+  findAllWithStats(filters: CustomerFilters = {}): CustomerWithStats[] {
+    const conditions = filters.includeDeleted ? [] : [eq(customers.isDeleted, false)]
+    if (filters.search) {
+      const term = `%${filters.search}%`
+      conditions.push(or(like(customers.name, term), like(customers.phone, term))!)
+    }
+
+    const query = this.db
+      .select({
+        ...getTableColumns(customers),
+        repairCount: sql<number>`count(${repairs.id})`,
+        lastVisit: sql<string | null>`max(${repairs.createdAt})`
+      })
+      .from(customers)
+      .leftJoin(repairs, and(eq(repairs.customerId, customers.id), eq(repairs.isDeleted, false)))
+      .groupBy(customers.id)
+
+    return (conditions.length ? query.where(and(...conditions)) : query).all()
+  }
+
   update(id: string, patch: UpdateCustomerInput): Customer | null {
-    const row = this.db
-      .update(customers)
-      .set({ ...patch, updatedAt: new Date().toISOString(), syncStatus: 'pending' })
-      .where(eq(customers.id, id))
-      .returning()
-      .get()
-    return row ?? null
+    return this.write<Customer>((tx) =>
+      tx
+        .update(customers)
+        .set({ ...patch, updatedAt: new Date().toISOString() })
+        .where(eq(customers.id, id))
+        .returning()
+        .get() ?? null
+    )
   }
 
   softDelete(id: string): Customer | null {
-    const row = this.db
-      .update(customers)
-      .set({ isDeleted: true, updatedAt: new Date().toISOString(), syncStatus: 'pending' })
-      .where(eq(customers.id, id))
-      .returning()
-      .get()
-    return row ?? null
+    return this.write<Customer>((tx) =>
+      tx
+        .update(customers)
+        .set({ isDeleted: true, updatedAt: new Date().toISOString() })
+        .where(eq(customers.id, id))
+        .returning()
+        .get() ?? null
+    )
   }
 }
