@@ -1,101 +1,265 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
+import { Button } from '@shared/components/Button'
+import { Card, CardHeader } from '@shared/components/Card'
 import { EmptyState } from '@shared/components/EmptyState'
-import { DatabaseIcon, CloudIcon } from '@shared/components/icons'
+import { PageHeader } from '@shared/components/PageHeader'
+import { ScrollList } from '@shared/components/ScrollList'
+import { StatusBadge } from '@shared/components/StatusBadge'
+import { SummaryCard } from '@shared/components/SummaryCard'
+import { ActivityFeedItem } from '@shared/components/ActivityFeedItem'
+import { RepairStatusActions } from '@shared/components/RepairStatusActions'
+import { RepairsIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
-import { verifyFirebaseInitialized } from '@shared/lib/firebase'
-import type { ComponentType, SVGProps } from 'react'
-import type { SystemHealth } from '../../../../main/ipc/system'
-
-type CheckState = 'checking' | 'ok' | 'error'
-
-function StatusPill({ state }: { state: CheckState }) {
-  const styles: Record<CheckState, string> = {
-    checking: 'bg-ink-muted/10 text-ink-muted',
-    ok: 'bg-success/10 text-success',
-    error: 'bg-danger/10 text-danger'
-  }
-  const label: Record<CheckState, string> = {
-    checking: 'Checking…',
-    ok: 'Connected',
-    error: 'Failed'
-  }
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-medium ${styles[state]}`}>
-      {label[state]}
-    </span>
-  )
-}
-
-function StatusCard({
-  icon: Icon,
-  title,
-  state,
-  detail
-}: {
-  icon: ComponentType<SVGProps<SVGSVGElement>>
-  title: string
-  state: CheckState
-  detail: string
-}) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-surface p-lg shadow-card">
-      <div className="mb-md flex items-start justify-between gap-sm">
-        <div className="flex items-center gap-sm">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-            <Icon width={20} height={20} />
-          </span>
-          <span className="text-base font-medium leading-tight text-ink">{title}</span>
-        </div>
-        <StatusPill state={state} />
-      </div>
-      <p className="text-sm text-ink-muted">{detail}</p>
-    </div>
-  )
-}
+import { RecurringReminderBanner } from './RecurringReminderBanner'
+import { OverdueDeliveryBanner } from './OverdueDeliveryBanner'
+import { OverdueUdhaarBanner } from './OverdueUdhaarBanner'
+import { MissedCloudBackupBanner } from './MissedCloudBackupBanner'
+import type { DashboardSummary } from '../../../../main/db/repositories/dashboardRepository'
+import type { Repair, RepairWithCustomer } from '../../../../main/db/repositories/repairRepository'
+import type { ActivityLogRow } from '../../../../main/db/repositories/activityLogRepository'
+import type { UdhaarSummary } from '../../../../main/ipc/udhaar'
 
 export function DashboardPage() {
-  const [dbState, setDbState] = useState<CheckState>('checking')
-  const [firebaseState, setFirebaseState] = useState<CheckState>('checking')
-  const [health, setHealth] = useState<SystemHealth | null>(null)
+  const navigate = useNavigate()
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [udhaarSummary, setUdhaarSummary] = useState<UdhaarSummary | null>(null)
+  const [deliveries, setDeliveries] = useState<RepairWithCustomer[] | null>(null)
+  const [recentRepairs, setRecentRepairs] = useState<RepairWithCustomer[] | null>(null)
+  const [activity, setActivity] = useState<ActivityLogRow[] | null>(null)
 
+  const refreshUdhaarSummary = () => {
+    window.api.udhaar.getSummary().then(setUdhaarSummary)
+  }
+
+  // Fired independently (not Promise.all) so one section never blocks another's paint —
+  // each is already a fast, indexed local query, but this keeps the page resilient either way.
   useEffect(() => {
-    window.api
-      .getSystemHealth()
-      .then((result) => {
-        setHealth(result)
-        setDbState(result.db.ok ? 'ok' : 'error')
-      })
-      .catch(() => setDbState('error'))
-
-    try {
-      const result = verifyFirebaseInitialized()
-      setFirebaseState(result.ok ? 'ok' : 'error')
-    } catch {
-      setFirebaseState('error')
-    }
+    window.api.dashboard.getSummary().then(setSummary)
+    window.api.dashboard.getTodaysDeliveries().then(setDeliveries)
+    window.api.dashboard.getRecentRepairs(8).then(setRecentRepairs)
+    window.api.listActivity({ limit: 12 }).then(setActivity)
+    refreshUdhaarSummary()
   }, [])
+
+  /**
+   * A status change from either inline list can affect the summary cards too
+   * (e.g. Pending/Ready for Pickup counts) — refetch that alongside patching
+   * the affected row in place. Today's Deliveries additionally drops the row
+   * once it's delivered/cancelled, matching what getTodaysDeliveries' own
+   * query already excludes — otherwise a locked, action-less row would sit
+   * there until the next full page load.
+   */
+  const handleRepairChanged = (updated: Repair) => {
+    setDeliveries((current) =>
+      current
+        ?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r))
+        .filter((r) => r.status !== 'delivered' && r.status !== 'cancelled') ?? current
+    )
+    setRecentRepairs((current) => current?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)) ?? current)
+    window.api.dashboard.getSummary().then(setSummary)
+  }
 
   return (
     <div className="flex flex-1 flex-col">
-      <BilingualText text={dictionary.nav.dashboard} as="div" size="xl" className="mb-xl" />
+      <PageHeader
+        title={dictionary.nav.dashboard}
+        action={
+          <div className="flex flex-wrap items-center gap-sm">
+            <Button variant="primary" onClick={() => navigate('/repairs/new')}>
+              <BilingualText text={dictionary.repairs.addNew} size="sm" align="center" />
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/customers/new')}>
+              <BilingualText text={dictionary.customers.addNew} size="sm" align="center" />
+            </Button>
+            <Button variant="ghost" onClick={() => navigate('/reports')}>
+              <BilingualText text={dictionary.dashboard.viewReports} size="sm" align="center" />
+            </Button>
+          </div>
+        }
+      />
 
-      <div className="mb-xl grid grid-cols-2 gap-lg">
-        <StatusCard
-          icon={DatabaseIcon}
-          title="SQLite / Drizzle"
-          state={dbState}
-          detail={health ? `Last checked: ${health.db.checkedAt}` : 'Awaiting first health check.'}
+      <OverdueDeliveryBanner onRepairChanged={handleRepairChanged} />
+      <OverdueUdhaarBanner onChanged={refreshUdhaarSummary} />
+      <MissedCloudBackupBanner />
+      <RecurringReminderBanner />
+
+      {/* Today's Deliveries first — operationally the most time-sensitive thing on this screen. */}
+      <Card padding="none" className="mb-xl">
+        <CardHeader>
+          <BilingualText text={dictionary.dashboard.todaysDeliveries} as="div" size="lg" />
+          {deliveries && deliveries.length > 0 && (
+            <span className="rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+              {deliveries.length}
+            </span>
+          )}
+        </CardHeader>
+        {deliveries === null ? (
+          <div className="p-lg">
+            <BilingualText text={dictionary.common.loading} size="sm" className="text-ink-muted" />
+          </div>
+        ) : deliveries.length === 0 ? (
+          <div className="p-lg text-center">
+            <BilingualText
+              text={dictionary.dashboard.noDeliveriesToday}
+              size="sm"
+              className="items-center text-ink-muted"
+            />
+          </div>
+        ) : (
+          <ScrollList maxHeight="sm" className="divide-y divide-border">
+            {deliveries.map((repair) => (
+              <div
+                key={repair.id}
+                onClick={() => navigate(`/repairs/${repair.id}`)}
+                className="flex cursor-pointer items-center justify-between gap-md px-lg py-md transition-colors hover:bg-surface-raised"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {repair.customerName} — {repair.deviceBrand} {repair.deviceModel}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {repair.customerPhone}
+                    {repair.deliveryTime ? ` · ${repair.deliveryTime}` : ''}
+                  </p>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-sm">
+                  <StatusBadge status={repair.status} />
+                  <RepairStatusActions repair={repair} onChanged={handleRepairChanged} compact stopRowClick />
+                </div>
+              </div>
+            ))}
+          </ScrollList>
+        )}
+      </Card>
+
+      <div className="mb-xl grid grid-cols-2 gap-lg md:grid-cols-4">
+        <SummaryCard
+          label={dictionary.dashboard.todaysRepairs}
+          value={summary ? String(summary.todayRepairsCount) : '—'}
         />
-        <StatusCard
-          icon={CloudIcon}
-          title="Firebase SDK"
-          state={firebaseState}
-          detail="Initialized with placeholder config — not wired to auth/sync yet."
+        <SummaryCard
+          label={dictionary.dashboard.pendingRepairs}
+          value={summary ? String(summary.pendingRepairsCount) : '—'}
+          tone="warning"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.readyForPickup}
+          value={summary ? String(summary.readyForPickupCount) : '—'}
+          tone="success"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.todaysRevenue}
+          value={summary ? summary.todayRevenue.toFixed(2) : '—'}
+          tone="primary"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.todaysProfit}
+          value={summary ? summary.todayProfit.toFixed(2) : '—'}
+          tone="success"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.monthlyRevenue}
+          value={summary ? summary.monthlyRevenue.toFixed(2) : '—'}
+          tone="primary"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.monthlyProfit}
+          value={summary ? summary.monthlyProfit.toFixed(2) : '—'}
+          tone="success"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.monthlyExpenses}
+          value={summary ? summary.monthlyExpenses.toFixed(2) : '—'}
+          tone="warning"
+        />
+        <SummaryCard
+          label={dictionary.dashboard.netProfit}
+          value={summary ? summary.netProfit.toFixed(2) : '—'}
+          tone={summary && summary.netProfit < 0 ? 'danger' : 'success'}
+        />
+        <SummaryCard
+          label={dictionary.udhaar.totalReceivables}
+          value={udhaarSummary ? udhaarSummary.totalReceivables.toFixed(2) : '—'}
+          tone="success"
+        />
+        <SummaryCard
+          label={dictionary.udhaar.totalPayables}
+          value={udhaarSummary ? udhaarSummary.totalPayables.toFixed(2) : '—'}
+          tone="warning"
         />
       </div>
 
-      <EmptyState />
+      <div className="grid grid-cols-1 gap-lg lg:grid-cols-3">
+        <Card padding="none" className="lg:col-span-2">
+          <CardHeader>
+            <BilingualText text={dictionary.dashboard.recentRepairs} as="div" size="lg" />
+            <Button variant="ghost" size="sm" onClick={() => navigate('/repairs')}>
+              <BilingualText text={dictionary.dashboard.viewAll} size="xs" align="center" />
+            </Button>
+          </CardHeader>
+          {recentRepairs === null ? (
+            <div className="p-lg">
+              <BilingualText text={dictionary.common.loading} size="sm" className="text-ink-muted" />
+            </div>
+          ) : recentRepairs.length === 0 ? (
+            <EmptyState title={dictionary.repairs.emptyTitle} body={dictionary.repairs.emptyBody} icon={RepairsIcon} />
+          ) : (
+            <ScrollList maxHeight="md" className="divide-y divide-border">
+              {recentRepairs.map((repair) => (
+                <div
+                  key={repair.id}
+                  onClick={() => navigate(`/repairs/${repair.id}`)}
+                  className="flex cursor-pointer items-center justify-between gap-md px-lg py-md transition-colors hover:bg-surface-raised"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink">{repair.customerName}</p>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {repair.deviceBrand} {repair.deviceModel}
+                    </p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-sm">
+                    <StatusBadge status={repair.status} />
+                    <span className="w-16 text-right text-xs font-medium text-ink-muted">
+                      {repair.remainingBalance.toFixed(2)}
+                    </span>
+                    <RepairStatusActions repair={repair} onChanged={handleRepairChanged} compact stopRowClick />
+                  </div>
+                </div>
+              ))}
+            </ScrollList>
+          )}
+        </Card>
+
+        <Card padding="none">
+          <CardHeader>
+            <BilingualText text={dictionary.dashboard.recentActivity} as="div" size="lg" />
+            <Button variant="ghost" size="sm" onClick={() => navigate('/activity')}>
+              <BilingualText text={dictionary.dashboard.viewAll} size="xs" align="center" />
+            </Button>
+          </CardHeader>
+          {activity === null ? (
+            <div className="p-lg">
+              <BilingualText text={dictionary.common.loading} size="sm" className="text-ink-muted" />
+            </div>
+          ) : activity.length === 0 ? (
+            <div className="p-lg text-center">
+              <BilingualText
+                text={dictionary.dashboard.noActivityYet}
+                size="sm"
+                className="items-center text-ink-muted"
+              />
+            </div>
+          ) : (
+            <ScrollList maxHeight="md" className="divide-y divide-border">
+              {activity.map((entry) => (
+                <ActivityFeedItem key={entry.id} entry={entry} />
+              ))}
+            </ScrollList>
+          )}
+        </Card>
+      </div>
     </div>
   )
 }

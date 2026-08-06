@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
+import { Button } from '@shared/components/Button'
+import { Card } from '@shared/components/Card'
 import { EmptyState } from '@shared/components/EmptyState'
+import { PageHeader } from '@shared/components/PageHeader'
 import { StatusBadge } from '@shared/components/StatusBadge'
+import { RepairStatusActions } from '@shared/components/RepairStatusActions'
 import { RepairsIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
 import { useRepairSearch } from '@shared/hooks/useRepairSearch'
@@ -26,23 +30,21 @@ export function RepairsPage() {
     window.api.repairs.listBrands().then(setBrands)
   }, [])
 
-  const { results, loading } = useRepairSearch({ search, status, brand, datePreset, customFrom, customTo })
+  const { results, loading, refresh } = useRepairSearch({ search, status, brand, datePreset, customFrom, customTo })
   const hasActiveFilters = Boolean(search) || status !== 'all' || brand !== 'all' || datePreset !== 'all'
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="mb-xl flex items-center justify-between gap-md">
-        <BilingualText text={dictionary.nav.repairs} as="div" size="xl" />
-        <button
-          type="button"
-          onClick={() => navigate('/repairs/new')}
-          className="flex-shrink-0 rounded-md bg-primary px-md py-sm text-primary-ink transition-colors hover:bg-primary-hover"
-        >
-          <BilingualText text={dictionary.repairs.addNew} size="sm" className="items-center" />
-        </button>
-      </div>
+      <PageHeader
+        title={dictionary.nav.repairs}
+        action={
+          <Button variant="primary" onClick={() => navigate('/repairs/new')}>
+            <BilingualText text={dictionary.repairs.addNew} size="sm" align="center" />
+          </Button>
+        }
+      />
 
-      <div className="mb-lg flex flex-wrap items-end gap-md">
+      <Card padding="md" className="mb-lg flex flex-wrap items-end gap-md">
         <label className="flex min-w-[240px] flex-1 flex-col gap-1">
           <BilingualText text={dictionary.repairs.searchPlaceholder} size="sm" className="text-ink-muted" />
           <input
@@ -118,7 +120,7 @@ export function RepairsPage() {
             </label>
           </>
         )}
-      </div>
+      </Card>
 
       {results.length === 0 && !loading ? (
         hasActiveFilters ? (
@@ -129,9 +131,9 @@ export function RepairsPage() {
           <EmptyState title={dictionary.repairs.emptyTitle} body={dictionary.repairs.emptyBody} icon={RepairsIcon} />
         )
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border/60 bg-surface shadow-card">
+        <Card padding="none" className="max-h-[32rem] overflow-y-auto">
           <table className="w-full text-left">
-            <thead className="border-b border-border bg-surface-raised">
+            <thead className="sticky top-0 z-10 border-b border-border bg-surface-raised">
               <tr>
                 <th className="px-lg py-sm">
                   <BilingualText text={dictionary.customers.name} size="sm" className="text-ink-muted" />
@@ -148,9 +150,10 @@ export function RepairsPage() {
                 <th className="px-lg py-sm">
                   <BilingualText text={dictionary.repairs.estimatedDeliveryDate} size="sm" className="text-ink-muted" />
                 </th>
-                <th className="px-lg py-sm">
-                  <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="text-ink-muted" />
+                <th className="px-lg py-sm text-right">
+                  <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="items-end text-ink-muted" />
                 </th>
+                <th className="px-lg py-sm" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -169,12 +172,19 @@ export function RepairsPage() {
                     <StatusBadge status={repair.status} />
                   </td>
                   <td className="px-lg py-md text-sm text-ink-muted">{repair.estimatedDeliveryDate ?? '—'}</td>
-                  <td className="px-lg py-md text-sm font-medium text-ink">{repair.remainingBalance.toFixed(2)}</td>
+                  <td className="px-lg py-md text-right text-sm font-medium tabular-nums text-ink">
+                    {repair.remainingBalance.toFixed(2)}
+                  </td>
+                  <td className="whitespace-nowrap px-lg py-md">
+                    <div className="flex justify-end">
+                      <RepairStatusActions repair={repair} onChanged={refresh} compact stopRowClick />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
   )

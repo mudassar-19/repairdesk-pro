@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
+import { Button } from '@shared/components/Button'
 import { CustomerPicker } from '@shared/components/CustomerPicker'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
@@ -168,10 +169,10 @@ export function RepairFormPage() {
   if (loadError) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
-        <BilingualText text={dictionary.repairs.notFound} as="div" size="lg" className="items-center" />
-        <button type="button" onClick={() => navigate('/repairs')} className="text-primary hover:underline">
-          <BilingualText text={dictionary.repairs.backToList} size="sm" />
-        </button>
+        <BilingualText text={dictionary.repairs.notFound} as="div" size="lg" align="center" />
+        <Button variant="ghost" onClick={() => navigate('/repairs')}>
+          <BilingualText text={dictionary.repairs.backToList} size="sm" align="center" />
+        </Button>
       </div>
     )
   }
@@ -299,20 +300,12 @@ export function RepairFormPage() {
         </label>
 
         <div className="mt-sm flex justify-end gap-sm">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="rounded-md px-md py-sm text-ink-muted transition-colors hover:bg-surface-raised"
-          >
-            <BilingualText text={dictionary.repairs.cancel} size="sm" />
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-md bg-primary px-md py-sm text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-60"
-          >
-            <BilingualText text={dictionary.repairs.save} size="sm" />
-          </button>
+          <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
+            <BilingualText text={dictionary.repairs.cancel} size="sm" align="center" />
+          </Button>
+          <Button type="submit" variant="primary" disabled={isSubmitting}>
+            <BilingualText text={dictionary.repairs.save} size="sm" align="center" />
+          </Button>
         </div>
       </form>
     </div>
