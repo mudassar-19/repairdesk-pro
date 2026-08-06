@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
+import { Button } from '@shared/components/Button'
 import { dictionary } from '@shared/i18n'
 import { useDuplicatePhoneCheck } from '@shared/hooks/useDuplicatePhoneCheck'
 import { normalizePhone } from '@shared/lib/phone'
@@ -117,10 +118,10 @@ export function CustomerFormPage() {
   if (loadError) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
-        <BilingualText text={dictionary.customers.notFound} as="div" size="lg" className="items-center" />
-        <button type="button" onClick={() => navigate('/customers')} className="text-primary hover:underline">
-          <BilingualText text={dictionary.customers.backToList} size="sm" />
-        </button>
+        <BilingualText text={dictionary.customers.notFound} as="div" size="lg" align="center" />
+        <Button variant="ghost" onClick={() => navigate('/customers')}>
+          <BilingualText text={dictionary.customers.backToList} size="sm" align="center" />
+        </Button>
       </div>
     )
   }
@@ -165,6 +166,9 @@ export function CustomerFormPage() {
               {duplicate.name} ({duplicate.phone})
             </p>
             {!duplicate.isDeleted ? (
+              // Not <Button> — inherits the warning-tinted text color from
+              // this callout via currentColor; ghost's own explicit muted
+              // text color would override that inherited tone.
               <button
                 type="button"
                 onClick={() => navigate(`/customers/${duplicate.id}`)}
@@ -191,20 +195,12 @@ export function CustomerFormPage() {
         </label>
 
         <div className="mt-sm flex justify-end gap-sm">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="rounded-md px-md py-sm text-ink-muted transition-colors hover:bg-surface-raised"
-          >
-            <BilingualText text={dictionary.customers.cancel} size="sm" />
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting || Boolean(duplicate)}
-            className="rounded-md bg-primary px-md py-sm text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-60"
-          >
-            <BilingualText text={dictionary.customers.save} size="sm" />
-          </button>
+          <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
+            <BilingualText text={dictionary.customers.cancel} size="sm" align="center" />
+          </Button>
+          <Button type="submit" variant="primary" disabled={isSubmitting || Boolean(duplicate)}>
+            <BilingualText text={dictionary.customers.save} size="sm" align="center" />
+          </Button>
         </div>
       </form>
     </div>

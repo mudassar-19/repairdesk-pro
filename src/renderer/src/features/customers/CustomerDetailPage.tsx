@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
+import { Button } from '@shared/components/Button'
+import { Card } from '@shared/components/Card'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ConfirmDialog } from '@shared/components/ConfirmDialog'
 import { StatusBadge } from '@shared/components/StatusBadge'
+import { SummaryCard } from '@shared/components/SummaryCard'
 import { RepairsIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
@@ -15,6 +18,7 @@ export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [repairs, setRepairs] = useState<Repair[]>([])
+  const [paymentsTotal, setPaymentsTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -23,14 +27,22 @@ export function CustomerDetailPage() {
     window.api.customers.getById(id).then(async (result) => {
       setCustomer(result)
       if (result) {
-        const customerRepairs = await window.api.repairs.list({ customerId: result.id })
+        const [customerRepairs, sumOfPayments] = await Promise.all([
+          window.api.repairs.list({ customerId: result.id }),
+          window.api.payments.sumByCustomer(result.id)
+        ])
         setRepairs([...customerRepairs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+        setPaymentsTotal(sumOfPayments)
       }
       setLoading(false)
     })
   }, [id])
 
-  const totalSpent = repairs.reduce((sum, repair) => sum + (repair.repairPrice - repair.remainingBalance), 0)
+  // Actual money received: the initial advance captured at repair creation
+  // (a repair-table field, not a Payment row) plus every payment recorded
+  // since via the Phase 7 Payments module — not the old repairPrice-minus-
+  // remainingBalance approximation.
+  const totalSpent = repairs.reduce((sum, repair) => sum + repair.advanceAmount, 0) + paymentsTotal
   const lastVisit = repairs[0] ? new Date(repairs[0].createdAt).toLocaleDateString() : '—'
 
   const handleDelete = async () => {
@@ -59,10 +71,10 @@ export function CustomerDetailPage() {
   if (!customer) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
-        <BilingualText text={dictionary.customers.notFound} as="div" size="lg" className="items-center" />
-        <button type="button" onClick={() => navigate('/customers')} className="text-primary hover:underline">
-          <BilingualText text={dictionary.customers.backToList} size="sm" />
-        </button>
+        <BilingualText text={dictionary.customers.notFound} as="div" size="lg" align="center" />
+        <Button variant="ghost" onClick={() => navigate('/customers')}>
+          <BilingualText text={dictionary.customers.backToList} size="sm" align="center" />
+        </Button>
       </div>
     )
   }
@@ -75,40 +87,23 @@ export function CustomerDetailPage() {
           <p className="mt-1 text-sm text-ink-muted">{customer.phone}</p>
         </div>
         <div className="flex flex-shrink-0 gap-sm">
-          <button
-            type="button"
-            onClick={() => navigate(`/customers/${customer.id}/edit`)}
-            className="rounded-md border border-border px-md py-sm transition-colors hover:bg-surface-raised"
-          >
-            <BilingualText text={dictionary.customers.edit} size="sm" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmOpen(true)}
-            className="rounded-md bg-danger/10 px-md py-sm text-danger transition-colors hover:bg-danger/20"
-          >
-            <BilingualText text={dictionary.customers.delete} size="sm" />
-          </button>
+          <Button variant="secondary" size="sm" onClick={() => navigate(`/customers/${customer.id}/edit`)}>
+            <BilingualText text={dictionary.customers.edit} size="xs" align="center" />
+          </Button>
+          <Button variant="danger-ghost" size="sm" onClick={() => setConfirmOpen(true)}>
+            <BilingualText text={dictionary.customers.delete} size="xs" align="center" />
+          </Button>
         </div>
       </div>
 
       <div className="mb-xl grid grid-cols-3 gap-lg">
-        <div className="rounded-lg border border-border/60 bg-surface p-lg shadow-card">
-          <BilingualText text={dictionary.customers.totalRepairs} size="sm" className="text-ink-muted" />
-          <p className="mt-1 text-2xl font-medium text-ink">{repairs.length}</p>
-        </div>
-        <div className="rounded-lg border border-border/60 bg-surface p-lg shadow-card">
-          <BilingualText text={dictionary.customers.totalSpent} size="sm" className="text-ink-muted" />
-          <p className="mt-1 text-2xl font-medium text-ink">{totalSpent.toFixed(2)}</p>
-        </div>
-        <div className="rounded-lg border border-border/60 bg-surface p-lg shadow-card">
-          <BilingualText text={dictionary.customers.lastVisit} size="sm" className="text-ink-muted" />
-          <p className="mt-1 text-2xl font-medium text-ink">{lastVisit}</p>
-        </div>
+        <SummaryCard label={dictionary.customers.totalRepairs} value={String(repairs.length)} />
+        <SummaryCard label={dictionary.customers.totalSpent} value={totalSpent.toFixed(2)} tone="primary" />
+        <SummaryCard label={dictionary.customers.lastVisit} value={lastVisit} />
       </div>
 
       {(customer.address || customer.notes) && (
-        <div className="mb-xl flex flex-col gap-sm rounded-lg border border-border/60 bg-surface p-lg shadow-card">
+        <Card className="mb-xl flex flex-col gap-sm">
           {customer.address && (
             <div>
               <BilingualText text={dictionary.customers.address} size="sm" className="text-ink-muted" />
@@ -121,22 +116,22 @@ export function CustomerDetailPage() {
               <p className="mt-0.5 text-sm text-ink">{customer.notes}</p>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       <BilingualText text={dictionary.customers.repairHistory} as="div" size="lg" className="mb-md" />
       {repairs.length === 0 ? (
-        <div className="flex flex-1 rounded-lg border border-border/60 bg-surface shadow-card">
+        <Card padding="none" className="flex flex-1">
           <EmptyState
             title={dictionary.customers.noRepairsYet}
             body={dictionary.customers.noRepairsYetBody}
             icon={RepairsIcon}
           />
-        </div>
+        </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border/60 bg-surface shadow-card">
+        <Card padding="none" className="max-h-[26rem] overflow-y-auto">
           <table className="w-full text-left">
-            <thead className="border-b border-border bg-surface-raised">
+            <thead className="sticky top-0 z-10 border-b border-border bg-surface-raised">
               <tr>
                 <th className="px-lg py-sm">
                   <BilingualText text={dictionary.repairs.deviceModel} size="sm" className="text-ink-muted" />
@@ -147,8 +142,8 @@ export function CustomerDetailPage() {
                 <th className="px-lg py-sm">
                   <BilingualText text={dictionary.customers.lastVisit} size="sm" className="text-ink-muted" />
                 </th>
-                <th className="px-lg py-sm">
-                  <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="text-ink-muted" />
+                <th className="px-lg py-sm text-right">
+                  <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="items-end text-ink-muted" />
                 </th>
               </tr>
             </thead>
@@ -168,12 +163,14 @@ export function CustomerDetailPage() {
                   <td className="px-lg py-md text-sm text-ink-muted">
                     {new Date(repair.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-lg py-md text-sm font-medium text-ink">{repair.remainingBalance.toFixed(2)}</td>
+                  <td className="px-lg py-md text-right text-sm font-medium tabular-nums text-ink">
+                    {repair.remainingBalance.toFixed(2)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       <ConfirmDialog
