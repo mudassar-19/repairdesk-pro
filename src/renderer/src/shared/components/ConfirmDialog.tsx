@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
 import type { BilingualString } from '@shared/i18n'
 import { BilingualText } from './BilingualText'
+import { Button } from './Button'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -9,6 +11,8 @@ export interface ConfirmDialogProps {
   cancelLabel: BilingualString
   /** Red confirm button for destructive actions (delete). Default is the primary brand color. */
   danger?: boolean
+  /** Extra dynamic content between body and buttons (e.g. a specific amount) — the static body text alone can't carry a runtime value. */
+  children?: ReactNode
   onConfirm: () => void
   onCancel: () => void
 }
@@ -21,6 +25,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   danger = false,
+  children,
   onConfirm,
   onCancel
 }: ConfirmDialogProps) {
@@ -38,24 +43,15 @@ export function ConfirmDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <BilingualText text={title} as="div" size="lg" className="mb-sm" />
-        <BilingualText text={body} as="div" size="sm" className="mb-lg text-ink-muted" />
+        <BilingualText text={body} as="div" size="sm" className={children ? 'mb-md text-ink-muted' : 'mb-lg text-ink-muted'} />
+        {children && <div className="mb-lg">{children}</div>}
         <div className="flex justify-end gap-sm">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md px-md py-sm text-sm font-medium text-ink-muted transition-colors hover:bg-surface-raised"
-          >
-            <BilingualText text={cancelLabel} size="sm" className="items-center" />
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`rounded-md px-md py-sm text-sm font-medium text-white transition-colors ${
-              danger ? 'bg-danger hover:bg-danger/90' : 'bg-primary hover:bg-primary-hover'
-            }`}
-          >
-            <BilingualText text={confirmLabel} size="sm" className="items-center" />
-          </button>
+          <Button variant="ghost" onClick={onCancel}>
+            <BilingualText text={cancelLabel} size="sm" align="center" />
+          </Button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+            <BilingualText text={confirmLabel} size="sm" align="center" />
+          </Button>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { normalizePhone } from '@shared/lib/phone'
 import { logActivity } from '@shared/lib/activityLog'
 import { dictionary } from '@shared/i18n'
 import { BilingualText } from './BilingualText'
+import { Button } from './Button'
 
 export interface CustomerPickerProps {
   value: Customer | null
@@ -13,7 +14,19 @@ export interface CustomerPickerProps {
   autoFocus?: boolean
 }
 
-const isDigits = (value: string): boolean => /^\d+$/.test(value.replace(/[^\d]/g, '')) && value.trim().length > 0
+/**
+ * True when the query is phone-number-shaped (digits plus common phone
+ * punctuation only) — used to decide whether "create new" should prefill
+ * the Phone field or the Name field. Stripping non-digits and checking what
+ * remains (the previous approach) matches ANY string containing a digit
+ * anywhere — e.g. a name like "Room 204" — silently routing it into Phone
+ * and leaving Name blank. Only common phone separators are stripped here,
+ * so anything with a letter in it correctly falls through to Name instead.
+ */
+const isDigits = (value: string): boolean => {
+  const stripped = value.replace(/[\s\-()+]/g, '')
+  return stripped.length > 0 && /^\d+$/.test(stripped)
+}
 
 /**
  * Standalone, reusable find-or-create customer widget — lives in
@@ -83,9 +96,9 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
           <p className="text-sm font-medium text-ink">{value.name}</p>
           <p className="text-xs text-ink-muted">{value.phone}</p>
         </div>
-        <button type="button" onClick={() => setEditing(true)} className="text-primary hover:underline">
-          <BilingualText text={dictionary.customers.changeCustomer} size="sm" />
-        </button>
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+          <BilingualText text={dictionary.customers.changeCustomer} size="xs" align="center" />
+        </Button>
       </div>
     )
   }
@@ -165,6 +178,10 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
                 {duplicate.name} ({duplicate.phone})
               </p>
               {!duplicate.isDeleted ? (
+                // Not <Button> — this inherits the warning-tinted text color
+                // from its parent callout via currentColor; Button's ghost
+                // variant sets its own explicit (muted) text color, which
+                // would override that inherited tone.
                 <button type="button" onClick={() => handleSelect(duplicate)} className="mt-1 underline">
                   <BilingualText text={dictionary.customers.useExisting} size="sm" />
                 </button>
@@ -177,21 +194,12 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
           )}
 
           <div className="flex justify-end gap-sm">
-            <button
-              type="button"
-              onClick={() => setMode('search')}
-              className="rounded-md px-sm py-1 text-ink-muted transition-colors hover:bg-surface-raised"
-            >
-              <BilingualText text={dictionary.customers.cancel} size="sm" />
-            </button>
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={creating || Boolean(duplicate)}
-              className="rounded-md bg-primary px-sm py-1 text-primary-ink transition-colors hover:bg-primary-hover disabled:opacity-60"
-            >
-              <BilingualText text={dictionary.customers.save} size="sm" />
-            </button>
+            <Button variant="ghost" size="sm" onClick={() => setMode('search')}>
+              <BilingualText text={dictionary.customers.cancel} size="xs" align="center" />
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleCreate} disabled={creating || Boolean(duplicate)}>
+              <BilingualText text={dictionary.customers.save} size="xs" align="center" />
+            </Button>
           </div>
         </div>
       )}

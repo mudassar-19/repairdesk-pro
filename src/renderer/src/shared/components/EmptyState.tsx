@@ -26,11 +26,8 @@ export function EmptyState({
       <span className="mb-lg flex h-16 w-16 items-center justify-center rounded-full bg-primary/5 text-primary/40">
         <Icon width={30} height={30} />
       </span>
-      <BilingualText text={title} size="lg" />
-      <p className="mt-sm max-w-md text-sm text-ink-muted">{body.en}</p>
-      <p dir="rtl" lang="ur" className="mt-1 max-w-md font-urdu text-xs text-ink-muted opacity-70">
-        {body.ur}
-      </p>
+      <BilingualText text={title} size="lg" align="center" />
+      <BilingualText text={body} size="sm" align="center" className="mt-sm max-w-md text-ink-muted" />
     </div>
   )
 }

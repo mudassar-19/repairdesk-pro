@@ -4,12 +4,20 @@
  * Tailwind classes (bg-primary, text-ink, rounded-md, ...) resolve to these variables,
  * and shared/theme/tokens.ts exposes the same names typed for non-Tailwind usage.
  */
+/**
+ * Nastaliq, not Naskh — Urdu is conventionally set in the calligraphic
+ * Nastaliq style (the look of Urdu poetry/print, and iOS's own Urdu font),
+ * not the more upright Naskh style Arabic normally uses. Loaded as a local
+ * woff2 (same convention as everything else in this file) so it renders
+ * identically on Windows and macOS instead of falling back to whatever
+ * Arabic-script font each OS happens to ship.
+ */
 @font-face {
-  font-family: 'Noto Naskh Arabic';
+  font-family: 'Noto Nastaliq Urdu';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../../assets/fonts/noto-naskh-arabic-regular.woff2') format('woff2');
+  src: url('../../assets/fonts/noto-nastaliq-urdu-regular.woff2') format('woff2');
   unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E;
 }
 
@@ -67,7 +75,7 @@
   /* Typography — larger base size for older-user readability */
   --font-sans:
     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-urdu: 'Noto Naskh Arabic', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+  --font-urdu: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
 
   --text-xs: 0.8125rem;
   --text-sm: 0.9375rem;
@@ -90,4 +98,73 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.6;
+}
+
+/**
+ * Shared print/export convention (Phase 9 Reports, and Phase 11 Receipts
+ * reusing the same plumbing): elements marked .no-print — the Sidebar and
+ * TopBar chrome — are hidden when printing or exporting to PDF via
+ * webContents.printToPDF()/print(), so only the actual page content (e.g.
+ * the Report view) ends up in the output. main's scroll/height constraints
+ * are lifted so a report longer than one screen still prints in full,
+ * not just the portion that happened to be scrolled into view.
+ */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    /* On screen, ReceiptModal's fixed inset-0 overlay escapes main's own
+       padding/background entirely (fixed positioning ignores ancestor
+       layout). The rule below drops that overlay back into normal document
+       flow for print — meaning it becomes a real child of main again, and
+       without this, main's own p-xl (32px) padding and bg-bg background
+       would wrap around the receipt in the export despite being completely
+       invisible in the on-screen preview. Harmless for Reports too — its
+       own content already carries its own padding/card styling. */
+    padding: 0 !important;
+    background: none !important;
+  }
+  /**
+   * The Receipt preview (Phase 11) is a fixed-position modal overlay, which
+   * doesn't rasterize cleanly for print/PDF as-is — this drops it back into
+   * normal document flow and strips the backdrop/shadow so only the actual
+   * receipt content (still visible, not matched by .no-print) ends up in
+   * the output. Scoped to these two classes rather than every fixed
+   * element in the app, since other modals (ConfirmDialog etc.) are never
+   * printed at all.
+   */
+  .print-modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  .print-modal-content {
+    box-shadow: none !important;
+    max-width: none !important;
+    margin: 0 !important;
+    /* On screen this is capped at 90vh with overflow-hidden so a long
+       receipt scrolls inside the small modal instead of pushing the page
+       around — paper doesn't have that constraint, and leaving it in place
+       for print risked silently clipping anything past 90% of the window's
+       (not the page's) height. */
+    max-height: none !important;
+    overflow: visible !important;
+    /* The thin border is a deliberate on-screen preview affordance (see
+       ReceiptModal) — it's not part of the receipt itself, so it must not
+       show up as a frame around the printed/exported output. */
+    border: none !important;
+  }
+  /* Same reasoning — the preview's own inner margin isn't receipt content,
+     and was eating into the receipt's already-narrow usable width. */
+  .receipt-scroll-area {
+    padding: 0 !important;
+  }
 }

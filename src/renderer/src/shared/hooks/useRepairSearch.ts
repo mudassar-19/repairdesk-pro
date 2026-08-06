@@ -13,10 +13,13 @@ export interface RepairListFilters {
 }
 
 /** Debounced, race-safe live search + filter over repairs, joined with customer name/phone for display. */
-export function useRepairSearch(filters: RepairListFilters): { results: RepairWithCustomer[]; loading: boolean } {
+export function useRepairSearch(
+  filters: RepairListFilters
+): { results: RepairWithCustomer[]; loading: boolean; refresh: () => void } {
   const [results, setResults] = useState<RepairWithCustomer[]>([])
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
+  const [refreshTick, setRefreshTick] = useState(0)
 
   useEffect(() => {
     const thisRequest = ++requestId.current
@@ -43,7 +46,8 @@ export function useRepairSearch(filters: RepairListFilters): { results: RepairWi
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [filters.search, filters.status, filters.brand, filters.datePreset, filters.customFrom, filters.customTo])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search, filters.status, filters.brand, filters.datePreset, filters.customFrom, filters.customTo, refreshTick])
 
-  return { results, loading }
+  return { results, loading, refresh: () => setRefreshTick((tick) => tick + 1) }
 }

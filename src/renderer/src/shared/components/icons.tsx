@@ -77,12 +77,12 @@ export function ReportsIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function SyncIcon(props: SVGProps<SVGSVGElement>) {
+export function AnalyticsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M4 9a8 8 0 0 1 13.9-4.9M20 15a8 8 0 0 1-13.9 4.9" />
-      <path d="M17.5 2.5 18 5l-2.6.6" />
-      <path d="M6.5 21.5 6 19l2.6-.6" />
+      <path d="M3.5 20.5h17.5" />
+      <path d="M3.5 15.5 9 10l3.5 3L20.5 5" />
+      <path d="M15 5h5.5v5.5" />
     </IconBase>
   )
 }
@@ -120,6 +120,53 @@ export function InboxIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M4 12.5 6.5 5h11L20 12.5" />
       <path d="M4 12.5v6a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18.5v-6" />
       <path d="M4 12.5h5l1 2h4l1-2h5" />
+    </IconBase>
+  )
+}
+
+export function UdhaarIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 8.5a2 2 0 0 1 2-2h11.5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+      <path d="M4 8.5 12 4l6 3" />
+      <circle cx="15" cy="12.5" r="1.6" />
+    </IconBase>
+  )
+}
+
+export function MoreVerticalIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props} stroke="none">
+      <circle cx="12" cy="5.5" r="1.6" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="12" cy="18.5" r="1.6" fill="currentColor" />
+    </IconBase>
+  )
+}
+
+export function ChevronDownIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </IconBase>
+  )
+}
+
+export function AuthIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M11 3.5H6a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 6 20.5h5" />
+      <path d="M14.5 8 19 12l-4.5 4" />
+      <path d="M19 12H9.5" />
+    </IconBase>
+  )
+}
+
+export function ActivityIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
     </IconBase>
   )
 }
