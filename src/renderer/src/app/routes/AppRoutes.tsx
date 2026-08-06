@@ -9,9 +9,12 @@ import { RepairFormPage } from '@features/repairs/RepairFormPage'
 import { RepairDetailPage } from '@features/repairs/RepairDetailPage'
 import { PaymentsPage } from '@features/payments/PaymentsPage'
 import { ExpensesPage } from '@features/expenses/ExpensesPage'
+import { ExpenseFormPage } from '@features/expenses/ExpenseFormPage'
+import { UdhaarPage } from '@features/udhaar/UdhaarPage'
+import { AddUdhaarPage } from '@features/udhaar/AddUdhaarPage'
 import { ReportsPage } from '@features/reports/ReportsPage'
-import { SyncPage } from '@features/sync/SyncPage'
-import { BackupPage } from '@features/backup/BackupPage'
+import { AnalyticsPage } from '@features/analytics/AnalyticsPage'
+import { ActivityTimelinePage } from '@features/activity/ActivityTimelinePage'
 import { SettingsPage } from '@features/settings/SettingsPage'
 import { AuthPage } from '@features/auth/AuthPage'
 import { useAuthBootstrap } from '@features/auth/hooks/useAuthBootstrap'
@@ -40,9 +43,12 @@ export function AppRoutes() {
         <Route path="/repairs/:id/edit" element={<RepairFormPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
+        <Route path="/expenses/new" element={<ExpenseFormPage />} />
+        <Route path="/udhaar" element={<UdhaarPage />} />
+        <Route path="/udhaar/new" element={<AddUdhaarPage />} />
         <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/sync" element={<SyncPage />} />
-        <Route path="/backup" element={<BackupPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/activity" element={<ActivityTimelinePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

@@ -6,9 +6,10 @@ import {
   RepairsIcon,
   PaymentsIcon,
   ExpensesIcon,
+  UdhaarIcon,
   ReportsIcon,
-  SyncIcon,
-  BackupIcon,
+  AnalyticsIcon,
+  ActivityIcon,
   SettingsIcon
 } from '@shared/components/icons'
 import type { ComponentType, SVGProps } from 'react'
@@ -25,8 +26,9 @@ export const navItems: NavItem[] = [
   { to: '/repairs', label: dictionary.nav.repairs, icon: RepairsIcon },
   { to: '/payments', label: dictionary.nav.payments, icon: PaymentsIcon },
   { to: '/expenses', label: dictionary.nav.expenses, icon: ExpensesIcon },
+  { to: '/udhaar', label: dictionary.nav.udhaar, icon: UdhaarIcon },
   { to: '/reports', label: dictionary.nav.reports, icon: ReportsIcon },
-  { to: '/sync', label: dictionary.nav.sync, icon: SyncIcon },
-  { to: '/backup', label: dictionary.nav.backup, icon: BackupIcon },
+  { to: '/analytics', label: dictionary.nav.analytics, icon: AnalyticsIcon },
+  { to: '/activity', label: dictionary.nav.activity, icon: ActivityIcon },
   { to: '/settings', label: dictionary.nav.settings, icon: SettingsIcon }
 ]

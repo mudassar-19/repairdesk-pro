@@ -4,7 +4,7 @@ export function TopBar() {
   const toggle = useSidebarStore((state) => state.toggle)
 
   return (
-    <header className="relative flex flex-shrink-0 items-center justify-between border-b border-border bg-surface px-lg py-md">
+    <header className="no-print relative flex flex-shrink-0 items-center justify-between border-b border-border bg-surface px-lg py-md">
       <span className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary-500 to-primary-700" />
       <button
         type="button"
@@ -16,7 +16,6 @@ export function TopBar() {
           <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
-      <span className="text-xs font-medium text-ink-muted">Phase 1 · Offline-first</span>
     </header>
   )
 }
