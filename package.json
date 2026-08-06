@@ -15,7 +15,10 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/main/db/migrate.ts"
+    "db:migrate": "tsx src/main/db/migrate.ts",
+    "seed:qa": "electron scripts/runSeedQaData.js",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:report": "playwright show-report e2e/report/html"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
@@ -33,6 +36,7 @@
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/rebuild": "^3.7.2",
     "@hookform/resolvers": "^3.9.1",
+    "@playwright/test": "^1.62.1",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
@@ -43,6 +47,7 @@
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "playwright": "^1.62.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14",
     "tsx": "^4.19.2",

@@ -9,3 +9,7 @@ dist
 *.sqlite-wal
 *.sqlite-shm
 .DS_Store
+e2e/.profiles
+e2e/report
+test-results
+playwright-report
