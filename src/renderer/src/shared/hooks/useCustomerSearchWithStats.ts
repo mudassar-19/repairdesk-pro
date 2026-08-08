@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CustomerWithStats } from '../../../../main/db/repositories/customerRepository'
+import { useDataSubscription } from '@shared/lib/dataBus'
 
 /**
  * Same debounced, race-safe search as useCustomerSearch, but for the
@@ -13,6 +14,10 @@ export function useCustomerSearchWithStats(query: string): { results: CustomerWi
   const [results, setResults] = useState<CustomerWithStats[]>([])
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  // Repair count / last-visit stats depend on repairs (and payments), so refresh on those too.
+  useDataSubscription(['customers', 'repairs', 'payments'], () => setRefreshTick((tick) => tick + 1))
 
   useEffect(() => {
     const thisRequest = ++requestId.current
@@ -27,7 +32,7 @@ export function useCustomerSearchWithStats(query: string): { results: CustomerWi
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [query])
+  }, [query, refreshTick])
 
   return { results, loading }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
+import { useDataSubscription } from '@shared/lib/dataBus'
 import type { Udhaar } from '../../../../main/db/repositories/udhaarRepository'
 import type { UdhaarDirection, UdhaarStatus } from '../../../../main/db/schema'
 
@@ -24,6 +25,9 @@ export function useUdhaarSearch(filters: UdhaarListFilters): { results: Udhaar[]
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
   const [refreshTick, setRefreshTick] = useState(0)
+
+  // A settlement/delivery-on-credit elsewhere changes udhaar — refresh live.
+  useDataSubscription(['udhaar'], () => setRefreshTick((tick) => tick + 1))
 
   useEffect(() => {
     const thisRequest = ++requestId.current

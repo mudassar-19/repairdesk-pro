@@ -1,19 +1,16 @@
 import { useEffect, useState } from 'react'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
-import { ConfirmDialog } from '@shared/components/ConfirmDialog'
 import { ExtendDateControl } from '@shared/components/ExtendDateControl'
 import { StatusBadge } from '@shared/components/StatusBadge'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
-import { repairStatusLabel } from '@shared/lib/repairStatus'
 import { addDays, daysOverdue, daysOverdueLabel, diffDays, overdueDismissKey } from '@shared/lib/overdueReminders'
-import { repairNeedsUdhaarPrompt, createLinkedReceivableUdhaar } from '@shared/lib/udhaarLinking'
-import { formatCurrency } from '@shared/lib/currency'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
-import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
 import { useDismissedBannersStore } from '@shared/hooks/useDismissedBannersStore'
+import { DeliverOnCreditModal } from '@features/repairs/DeliverOnCreditModal'
 import type { Repair, RepairWithCustomer } from '../../../../main/db/repositories/repairRepository'
+import type { DeliverOnCreditResult } from '../../../../main/db/services/deliveryService'
 
 const today = (): string => formatLocalDate(new Date())
 
@@ -34,11 +31,9 @@ export interface OverdueDeliveryBannerProps {
  * overdueDismissKey's own comment for why that matters.
  */
 export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBannerProps) {
-  const { branding } = useBrandingSettings()
-  const currency = branding?.currency ?? 'PKR'
   const [overdueRepairs, setOverdueRepairs] = useState<RepairWithCustomer[] | null>(null)
   const [extendingId, setExtendingId] = useState<string | null>(null)
-  const [confirmingDeliveryFor, setConfirmingDeliveryFor] = useState<RepairWithCustomer | null>(null)
+  const [creditFor, setCreditFor] = useState<RepairWithCustomer | null>(null)
   const dismissed = useDismissedBannersStore((state) => state.dismissed)
   const dismiss = useDismissedBannersStore((state) => state.dismiss)
 
@@ -50,28 +45,31 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
     setOverdueRepairs((current) => current?.filter((repair) => repair.id !== repairId) ?? current)
   }
 
-  const handleMarkDelivered = async (repair: RepairWithCustomer, trackAsUdhaar: boolean) => {
-    const previousStatus = repair.status
-    const updated = await window.api.repairs.update(repair.id, { status: 'delivered' })
-    if (!updated) return
-    onRepairChanged(updated)
+  // Part A: full-payment delivery (records the balance as paid + delivers).
+  const handleMarkDelivered = async (repair: RepairWithCustomer) => {
+    const result = await window.api.repairs.deliverWithFullPayment(repair.id)
+    onRepairChanged(result.repair)
     removeFromList(repair.id)
     logActivity({
       actionType: 'status_change',
       entityType: 'repair',
-      entityId: updated.id,
-      description: `Status changed from ${repairStatusLabel[previousStatus].en} to ${repairStatusLabel.delivered.en} (via overdue delivery reminder)`,
-      metadata: { fromStatus: previousStatus, toStatus: 'delivered', viaOverdueReminder: true }
+      entityId: result.repair.id,
+      description: `Delivered (paid in full${result.payment ? ` ${result.payment.amount.toFixed(2)}` : ''}) via overdue delivery reminder`,
+      metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null, viaOverdueReminder: true }
     })
-    if (trackAsUdhaar) await createLinkedReceivableUdhaar(updated)
   }
 
-  const handleMarkDeliveredClick = (repair: RepairWithCustomer) => {
-    if (repairNeedsUdhaarPrompt(repair)) {
-      setConfirmingDeliveryFor(repair)
-    } else {
-      void handleMarkDelivered(repair, false)
-    }
+  const handleCreditDelivered = (repair: RepairWithCustomer, result: DeliverOnCreditResult) => {
+    setCreditFor(null)
+    onRepairChanged(result.repair)
+    removeFromList(repair.id)
+    logActivity({
+      actionType: 'status_change',
+      entityType: 'repair',
+      entityId: result.repair.id,
+      description: `Delivered on credit via overdue reminder${result.payment ? ` — paid ${result.payment.amount.toFixed(2)}` : ''}${result.udhaar ? `, ${result.udhaar.totalAmount.toFixed(2)} on udhaar` : ''}`,
+      metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null, udhaarId: result.udhaar?.id ?? null, viaOverdueReminder: true }
+    })
   }
 
   const handleApplyExtension = async (repair: RepairWithCustomer, newDate: string) => {
@@ -151,10 +149,15 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
               </div>
               <div className="flex flex-shrink-0 items-center gap-sm">
                 <StatusBadge status={repair.status} />
-                <Button variant="primary" size="sm" onClick={() => handleMarkDeliveredClick(repair)}>
+                <Button variant="primary" size="sm" onClick={() => void handleMarkDelivered(repair)}>
                   <BilingualText text={dictionary.repairs.markDelivered} size="xs" align="center" />
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => toggleExtend(repair)}>
+                {repair.remainingBalance > 0 && (
+                  <Button variant="secondary" size="sm" onClick={() => setCreditFor(repair)}>
+                    <BilingualText text={dictionary.repairs.deliverOnCredit} size="xs" align="center" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => toggleExtend(repair)}>
                   <BilingualText text={dictionary.dashboard.extendDeliveryDate} size="xs" align="center" />
                 </Button>
               </div>
@@ -173,32 +176,14 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
         ))}
       </div>
 
-      <ConfirmDialog
-        open={confirmingDeliveryFor !== null}
-        title={dictionary.udhaar.trackBalancePromptTitle}
-        body={dictionary.udhaar.trackBalancePromptBody}
-        confirmLabel={dictionary.udhaar.trackAsUdhaar}
-        cancelLabel={dictionary.udhaar.skipTracking}
-        onConfirm={() => {
-          const repair = confirmingDeliveryFor
-          setConfirmingDeliveryFor(null)
-          if (repair) void handleMarkDelivered(repair, true)
+      <DeliverOnCreditModal
+        repair={creditFor}
+        open={creditFor !== null}
+        onClose={() => setCreditFor(null)}
+        onDelivered={(result) => {
+          if (creditFor) handleCreditDelivered(creditFor, result)
         }}
-        onCancel={() => {
-          const repair = confirmingDeliveryFor
-          setConfirmingDeliveryFor(null)
-          if (repair) void handleMarkDelivered(repair, false)
-        }}
-      >
-        {confirmingDeliveryFor && (
-          <div className="rounded-md bg-surface-raised p-md">
-            <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="text-ink-muted" />
-            <p className="mt-0.5 text-lg font-medium text-ink">
-              {formatCurrency(confirmingDeliveryFor.remainingBalance, currency)}
-            </p>
-          </div>
-        )}
-      </ConfirmDialog>
+      />
     </div>
   )
 }

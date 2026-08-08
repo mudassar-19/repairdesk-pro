@@ -1,22 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
-import { expenseCategoryValues, expenseCategoryLabel } from '@shared/lib/expenseCategory'
+import { expenseCategoryValues, expenseCategoryLabel, type ExpenseCategory } from '@shared/lib/expenseCategory'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
+import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
 
 const CUSTOM_SENTINEL = '__custom__'
 
 const todayDateString = (): string => formatLocalDate(new Date())
-const currentMonthString = (): string => {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
+
+/** Bilingual option label for the category <select>, since <option> can't hold BilingualText. */
+const categoryOptionLabel = (value: ExpenseCategory): string =>
+  `${expenseCategoryLabel[value].en} — ${expenseCategoryLabel[value].ur}`
 
 const expenseFormSchema = z
   .object({
@@ -29,8 +30,7 @@ const expenseFormSchema = z
       .refine((value) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0, 'Enter a valid amount'),
     description: z.string().trim().optional(),
     expenseDate: z.string().trim().min(1, 'Expense date is required'),
-    isRecurring: z.boolean(),
-    recurringMonth: z.string().trim().optional()
+    isRecurring: z.boolean()
   })
   .refine((data) => data.category !== CUSTOM_SENTINEL || Boolean(data.customCategory?.trim()), {
     message: 'Enter a custom category name',
@@ -39,38 +39,45 @@ const expenseFormSchema = z
 
 type ExpenseFormValues = z.infer<typeof expenseFormSchema>
 
+/** Pre-fill payload passed from the Dashboard recurring-draft "Add" button (Part J#16). */
+interface ExpensePrefill {
+  category?: string
+  amount?: number
+}
+
 const inputClass =
   'rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20'
 
+const isKnownCategory = (category: string): category is ExpenseCategory =>
+  (expenseCategoryValues as readonly string[]).includes(category)
+
 export function ExpenseFormPage() {
   const navigate = useNavigate()
+  const prefill = (useLocation().state as ExpensePrefill | null) ?? null
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // A recurring draft may target a built-in category or a custom one.
+  const prefillIsCustom = Boolean(prefill?.category) && !isKnownCategory(prefill!.category!)
 
   const {
     register,
     handleSubmit,
     watch,
-    setValue,
     formState: { errors, isSubmitting }
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
     defaultValues: {
-      category: 'rent',
-      customCategory: '',
-      amount: '',
+      category: prefill?.category ? (prefillIsCustom ? CUSTOM_SENTINEL : prefill.category) : 'rent',
+      customCategory: prefillIsCustom ? prefill!.category! : '',
+      amount: prefill?.amount != null ? String(prefill.amount) : '',
       description: '',
       expenseDate: todayDateString(),
-      isRecurring: false,
-      recurringMonth: ''
+      // Arriving from a recurring draft means this category repeats monthly.
+      isRecurring: Boolean(prefill)
     }
   })
 
   const categoryValue = watch('category')
-  const isRecurringValue = watch('isRecurring')
-
-  useEffect(() => {
-    if (isRecurringValue) setValue('recurringMonth', currentMonthString())
-  }, [isRecurringValue, setValue])
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null)
@@ -83,7 +90,9 @@ export function ExpenseFormPage() {
         description: values.description?.trim() || null,
         expenseDate: values.expenseDate,
         isRecurring: values.isRecurring,
-        recurringMonth: values.isRecurring ? values.recurringMonth || currentMonthString() : null
+        // recurringMonth is no longer captured — "recurring" now simply means
+        // "repeats every month" (Part K#20); the auto-draft finds it by flag.
+        recurringMonth: null
       })
       logActivity({
         actionType: 'create',
@@ -103,6 +112,7 @@ export function ExpenseFormPage() {
 
       <form
         onSubmit={onSubmit}
+        onKeyDown={advanceOnEnter}
         noValidate
         className="flex flex-col gap-md rounded-lg border border-border/60 bg-surface p-xl shadow-card"
       >
@@ -117,10 +127,12 @@ export function ExpenseFormPage() {
           <select className={inputClass} {...register('category')}>
             {expenseCategoryValues.map((value) => (
               <option key={value} value={value}>
-                {expenseCategoryLabel[value].en}
+                {categoryOptionLabel(value)}
               </option>
             ))}
-            <option value={CUSTOM_SENTINEL}>{dictionary.expenses.categoryCustom.en}</option>
+            <option value={CUSTOM_SENTINEL}>
+              {dictionary.expenses.categoryCustom.en} — {dictionary.expenses.categoryCustom.ur}
+            </option>
           </select>
         </label>
 
@@ -149,21 +161,17 @@ export function ExpenseFormPage() {
           {errors.expenseDate && <span className="text-xs text-danger">{errors.expenseDate.message}</span>}
         </label>
 
-        <label className="flex items-center gap-sm">
+        <label className="flex items-start gap-sm">
           <input
             type="checkbox"
-            className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/20"
             {...register('isRecurring')}
           />
-          <BilingualText text={dictionary.expenses.isRecurring} size="sm" />
+          <span className="flex flex-col">
+            <BilingualText text={dictionary.expenses.isRecurring} size="sm" />
+            <BilingualText text={dictionary.expenses.isRecurringHint} size="xs" className="text-ink-muted" />
+          </span>
         </label>
-
-        {isRecurringValue && (
-          <label className="flex flex-col gap-1">
-            <BilingualText text={dictionary.expenses.recurringMonth} size="sm" className="text-ink-muted" />
-            <input type="month" className={inputClass} {...register('recurringMonth')} />
-          </label>
-        )}
 
         <div className="mt-sm flex justify-end gap-sm">
           <Button type="button" variant="ghost" onClick={() => navigate(-1)}>

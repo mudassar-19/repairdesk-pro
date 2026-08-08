@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { SystemHealth } from '../main/ipc/system'
-import type { LocalSession } from '../main/ipc/auth'
+import type { LocalSession, SaveSessionResult, DeviceOwner } from '../main/ipc/auth'
 import type { ActivityLogEvent } from '../main/ipc/activity'
 import type {
   ActivityLogFilters,
@@ -25,6 +25,7 @@ import type {
 } from '../main/db/repositories/repairRepository'
 import type { Payment, PaymentWithContext, PaymentListFilters, NewPaymentInput } from '../main/db/repositories/paymentRepository'
 import type { RecordPaymentResult } from '../main/db/services/paymentService'
+import type { DeliverResult, DeliverOnCreditInput, DeliverOnCreditResult } from '../main/db/services/deliveryService'
 import type {
   Expense,
   ExpenseFilters,
@@ -42,7 +43,7 @@ import type {
 } from '../main/db/repositories/analyticsRepository'
 import type { BackupInfo, BackupResult, RestoreResult } from '../main/db/services/backupService'
 import type { BrandingSettings, ReceiptSettings, BackupSettings, CloudBackupState } from '../main/db/repositories/settingsRepository'
-import type { GoogleDriveStatus, CloudBackupResult } from '../main/ipc/googleDrive'
+import type { GoogleDriveStatus, CloudBackupResult, RemoteBackupInfoResult } from '../main/ipc/googleDrive'
 import type { ConnectResult } from '../main/services/googleDriveAuth'
 import type { PickLogoResult } from '../main/ipc/settings'
 import type { Udhaar, NewUdhaarInput, UpdateUdhaarInput, UdhaarFilters } from '../main/db/repositories/udhaarRepository'
@@ -56,16 +57,55 @@ import type { UdhaarSummary } from '../main/ipc/udhaar'
  * renderer can reach anything privileged — no Node/Electron globals leak
  * through. Every channel here must be explicit; there is no passthrough.
  */
+/** Business data domains a write can affect — the vocabulary of the real-time bus (Part E). */
+export type DataEntity = 'repairs' | 'payments' | 'udhaar' | 'expenses' | 'customers' | 'settings' | 'activity'
+
+const dataChangeListeners = new Set<(entities: DataEntity[]) => void>()
+function emitDataChange(entities: DataEntity[]): void {
+  for (const listener of dataChangeListeners) {
+    try {
+      listener(entities)
+    } catch {
+      // A subscriber throwing must never break the mutation that triggered it.
+    }
+  }
+}
+
+/**
+ * Wraps a mutating IPC channel so that, after it resolves successfully, it
+ * publishes the set of data entities it changed to every onDataChanged
+ * subscriber (Part E — real-time updates with no manual refresh). This is the
+ * one place writes announce themselves; read-only channels are never wrapped.
+ * Emitting from the preload (not the renderer) is deliberate: window.api is
+ * frozen by context isolation, so it cannot be monkey-patched in the renderer.
+ */
+function mutate<A extends unknown[], R>(channel: string, entities: DataEntity[]) {
+  return async (...args: A): Promise<R> => {
+    const result = (await ipcRenderer.invoke(channel, ...args)) as R
+    emitDataChange(entities)
+    return result
+  }
+}
+
 const api = {
   getSystemHealth: (): Promise<SystemHealth> => ipcRenderer.invoke('system:getHealth'),
+  /** Subscribe to post-write data-change events. Returns an unsubscribe fn. */
+  onDataChanged: (listener: (entities: DataEntity[]) => void): (() => void) => {
+    dataChangeListeners.add(listener)
+    return () => {
+      dataChangeListeners.delete(listener)
+    }
+  },
   auth: {
     getLocalSession: (): Promise<LocalSession | null> => ipcRenderer.invoke('auth:getLocalSession'),
-    saveLocalSession: (session: LocalSession): Promise<void> =>
+    saveLocalSession: (session: LocalSession): Promise<SaveSessionResult> =>
       ipcRenderer.invoke('auth:saveLocalSession', session),
     clearLocalSession: (): Promise<void> => ipcRenderer.invoke('auth:clearLocalSession'),
-    getDeviceId: (): Promise<string> => ipcRenderer.invoke('auth:getDeviceId')
+    getDeviceId: (): Promise<string> => ipcRenderer.invoke('auth:getDeviceId'),
+    getDeviceOwner: (): Promise<DeviceOwner | null> => ipcRenderer.invoke('auth:getDeviceOwner'),
+    resetDeviceBinding: (): Promise<void> => ipcRenderer.invoke('auth:resetDeviceBinding')
   },
-  logActivity: (event: ActivityLogEvent): Promise<void> => ipcRenderer.invoke('activity:log', event),
+  logActivity: mutate<[ActivityLogEvent], void>('activity:log', ['activity']),
   listActivity: (filters?: ActivityLogFilters): Promise<ActivityLogRow[]> =>
     ipcRenderer.invoke('activity:list', filters),
   activity: {
@@ -79,10 +119,9 @@ const api = {
     getById: (id: string): Promise<Customer | null> => ipcRenderer.invoke('customers:getById', id),
     findByPhone: (phone: string): Promise<Customer | null> =>
       ipcRenderer.invoke('customers:findByPhone', phone),
-    create: (input: NewCustomerInput): Promise<Customer> => ipcRenderer.invoke('customers:create', input),
-    update: (id: string, patch: UpdateCustomerInput): Promise<Customer | null> =>
-      ipcRenderer.invoke('customers:update', id, patch),
-    softDelete: (id: string): Promise<Customer | null> => ipcRenderer.invoke('customers:softDelete', id)
+    create: mutate<[NewCustomerInput], Customer>('customers:create', ['customers']),
+    update: mutate<[string, UpdateCustomerInput], Customer | null>('customers:update', ['customers']),
+    softDelete: mutate<[string], Customer | null>('customers:softDelete', ['customers', 'repairs', 'payments'])
   },
   repairs: {
     list: (filters?: RepairFilters): Promise<Repair[]> => ipcRenderer.invoke('repairs:list', filters),
@@ -90,10 +129,16 @@ const api = {
       ipcRenderer.invoke('repairs:listWithCustomer', filters),
     getById: (id: string): Promise<Repair | null> => ipcRenderer.invoke('repairs:getById', id),
     listBrands: (): Promise<string[]> => ipcRenderer.invoke('repairs:listBrands'),
-    create: (input: NewRepairInput): Promise<Repair> => ipcRenderer.invoke('repairs:create', input),
-    update: (id: string, patch: UpdateRepairInput): Promise<Repair | null> =>
-      ipcRenderer.invoke('repairs:update', id, patch),
-    softDelete: (id: string): Promise<Repair | null> => ipcRenderer.invoke('repairs:softDelete', id)
+    create: mutate<[NewRepairInput], Repair>('repairs:create', ['repairs', 'payments', 'customers']),
+    update: mutate<[string, UpdateRepairInput], Repair | null>('repairs:update', ['repairs', 'payments', 'customers']),
+    softDelete: mutate<[string], Repair | null>('repairs:softDelete', ['repairs', 'payments', 'customers']),
+    deliverWithFullPayment: mutate<[string], DeliverResult>('repairs:deliverWithFullPayment', ['repairs', 'payments', 'customers']),
+    deliverOnCredit: mutate<[DeliverOnCreditInput], DeliverOnCreditResult>('repairs:deliverOnCredit', [
+      'repairs',
+      'payments',
+      'udhaar',
+      'customers'
+    ])
   },
   dashboard: {
     getSummary: (): Promise<DashboardSummary> => ipcRenderer.invoke('dashboard:getSummary'),
@@ -111,21 +156,23 @@ const api = {
       ipcRenderer.invoke('payments:listWithContext', filters),
     sumByCustomer: (customerId: string): Promise<number> =>
       ipcRenderer.invoke('payments:sumByCustomer', customerId),
-    record: (input: NewPaymentInput): Promise<RecordPaymentResult> =>
-      ipcRenderer.invoke('payments:record', input)
+    record: mutate<[NewPaymentInput], RecordPaymentResult>('payments:record', ['payments', 'repairs', 'customers'])
   },
   udhaar: {
-    create: (input: NewUdhaarInput): Promise<Udhaar> => ipcRenderer.invoke('udhaar:create', input),
+    create: mutate<[NewUdhaarInput], Udhaar>('udhaar:create', ['udhaar']),
     getById: (id: string): Promise<Udhaar | null> => ipcRenderer.invoke('udhaar:getById', id),
     list: (filters?: UdhaarFilters): Promise<Udhaar[]> => ipcRenderer.invoke('udhaar:list', filters),
     findByRepairId: (repairId: string): Promise<Udhaar[]> => ipcRenderer.invoke('udhaar:findByRepairId', repairId),
-    update: (id: string, patch: UpdateUdhaarInput): Promise<Udhaar | null> =>
-      ipcRenderer.invoke('udhaar:update', id, patch),
-    softDelete: (id: string): Promise<Udhaar | null> => ipcRenderer.invoke('udhaar:softDelete', id),
+    update: mutate<[string, UpdateUdhaarInput], Udhaar | null>('udhaar:update', ['udhaar']),
+    softDelete: mutate<[string], Udhaar | null>('udhaar:softDelete', ['udhaar']),
     findSettlements: (udhaarId: string): Promise<UdhaarSettlement[]> =>
       ipcRenderer.invoke('udhaar:findSettlements', udhaarId),
-    recordSettlement: (input: RecordSettlementInput): Promise<RecordSettlementResult> =>
-      ipcRenderer.invoke('udhaar:recordSettlement', input),
+    recordSettlement: mutate<[RecordSettlementInput], RecordSettlementResult>('udhaar:recordSettlement', [
+      'udhaar',
+      'payments',
+      'repairs',
+      'customers'
+    ]),
     getOverdue: (): Promise<Udhaar[]> => ipcRenderer.invoke('udhaar:getOverdue'),
     getSummary: (): Promise<UdhaarSummary> => ipcRenderer.invoke('udhaar:getSummary')
   },
@@ -136,10 +183,11 @@ const api = {
       ipcRenderer.invoke('expenses:sumByDateRange', dateFrom, dateTo, category),
     hasEntryForCurrentMonth: (category: string): Promise<boolean> =>
       ipcRenderer.invoke('expenses:hasEntryForCurrentMonth', category),
-    create: (input: NewExpenseInput): Promise<Expense> => ipcRenderer.invoke('expenses:create', input),
-    update: (id: string, patch: UpdateExpenseInput): Promise<Expense | null> =>
-      ipcRenderer.invoke('expenses:update', id, patch),
-    softDelete: (id: string): Promise<Expense | null> => ipcRenderer.invoke('expenses:softDelete', id)
+    getRecurringDrafts: (): Promise<{ category: string; amount: number }[]> =>
+      ipcRenderer.invoke('expenses:getRecurringDrafts'),
+    create: mutate<[NewExpenseInput], Expense>('expenses:create', ['expenses']),
+    update: mutate<[string, UpdateExpenseInput], Expense | null>('expenses:update', ['expenses']),
+    softDelete: mutate<[string], Expense | null>('expenses:softDelete', ['expenses'])
   },
   reports: {
     generate: (bounds: ReportDateBounds): Promise<ReportData> => ipcRenderer.invoke('reports:generate', bounds)
@@ -181,6 +229,7 @@ const api = {
     getStatus: (): Promise<GoogleDriveStatus> => ipcRenderer.invoke('googleDrive:getStatus'),
     disconnect: (): Promise<void> => ipcRenderer.invoke('googleDrive:disconnect'),
     backupNow: (): Promise<CloudBackupResult> => ipcRenderer.invoke('googleDrive:backupNow'),
+    getRemoteBackupInfo: (): Promise<RemoteBackupInfoResult> => ipcRenderer.invoke('googleDrive:getRemoteBackupInfo'),
     restoreLatest: (): Promise<RestoreResult> => ipcRenderer.invoke('googleDrive:restoreLatest')
   },
   settings: {

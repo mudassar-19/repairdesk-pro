@@ -8,6 +8,14 @@ import {
   type NewRepairInput,
   type UpdateRepairInput
 } from '../db/repositories/repairRepository'
+import { createRepair } from '../db/services/repairService'
+import {
+  deliverWithFullPayment,
+  deliverOnCredit,
+  type DeliverResult,
+  type DeliverOnCreditInput,
+  type DeliverOnCreditResult
+} from '../db/services/deliveryService'
 
 /**
  * All repair reads/writes for the renderer go through here — no direct
@@ -30,7 +38,9 @@ export function registerRepairsIpc(): void {
 
   ipcMain.handle('repairs:listBrands', (): string[] => repo().listDistinctBrands())
 
-  ipcMain.handle('repairs:create', (_event, input: NewRepairInput): Repair => repo().create(input))
+  // Routed through the service (not repo().create) so the booking Advance is
+  // atomically recorded as an `advance` Payment — see repairService.createRepair.
+  ipcMain.handle('repairs:create', (_event, input: NewRepairInput): Repair => createRepair(getDatabase(), input))
 
   ipcMain.handle(
     'repairs:update',
@@ -38,4 +48,15 @@ export function registerRepairsIpc(): void {
   )
 
   ipcMain.handle('repairs:softDelete', (_event, id: string): Repair | null => repo().softDelete(id))
+
+  // Atomic delivery flows (Part A): full-payment-at-pickup, or split part
+  // payment + linked receivable udhaar for the credit case.
+  ipcMain.handle(
+    'repairs:deliverWithFullPayment',
+    (_event, repairId: string): DeliverResult => deliverWithFullPayment(getDatabase(), repairId)
+  )
+  ipcMain.handle(
+    'repairs:deliverOnCredit',
+    (_event, input: DeliverOnCreditInput): DeliverOnCreditResult => deliverOnCredit(getDatabase(), input)
+  )
 }

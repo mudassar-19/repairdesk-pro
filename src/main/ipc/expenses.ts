@@ -26,6 +26,11 @@ export function registerExpensesIpc(): void {
     (_event, category: string): boolean => repo().hasEntryForCurrentMonth(category)
   )
 
+  ipcMain.handle(
+    'expenses:getRecurringDrafts',
+    (): { category: string; amount: number }[] => repo().findRecurringDrafts()
+  )
+
   ipcMain.handle('expenses:create', (_event, input: NewExpenseInput): Expense => repo().create(input))
 
   ipcMain.handle(

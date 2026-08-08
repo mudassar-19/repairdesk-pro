@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { launchApp, freshProfileDir, SHARED_PROFILE_DIR, shoot } from '../fixtures/support'
+import { launchApp, freshProfileDir, shoot } from '../fixtures/support'
 
 // Provided via env so no real credential ever lands in a committed file:
 //   E2E_FIREBASE_EMAIL=... E2E_FIREBASE_PASSWORD=... npx playwright test
 const TEST_EMAIL = process.env.E2E_FIREBASE_EMAIL
 const TEST_PASSWORD = process.env.E2E_FIREBASE_PASSWORD
+
+// The real-login + session-persistence checks run on their OWN throwaway
+// profile (not the suite's shared one, which globalSetup pre-authenticates
+// offline) so a real sign-in never collides with the per-device account lock.
+const LOGIN_PROFILE = freshProfileDir('auth-real-login')
 
 test.describe.serial('Auth', () => {
   test('login form shows client-side validation for empty and malformed input', async () => {
@@ -40,7 +45,7 @@ test.describe.serial('Auth', () => {
 
   test('logs in with real credentials and reaches the Dashboard', async () => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, 'E2E_FIREBASE_EMAIL / E2E_FIREBASE_PASSWORD not provided')
-    const { app, window } = await launchApp(SHARED_PROFILE_DIR)
+    const { app, window } = await launchApp(LOGIN_PROFILE)
     try {
       await window.locator('input[type=email]').fill(TEST_EMAIL!)
       await window.locator('input[type=password]').fill(TEST_PASSWORD!)
@@ -54,7 +59,7 @@ test.describe.serial('Auth', () => {
 
   test('persists session across a relaunch — no re-login required', async () => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, 'E2E_FIREBASE_EMAIL / E2E_FIREBASE_PASSWORD not provided')
-    const { app, window } = await launchApp(SHARED_PROFILE_DIR)
+    const { app, window } = await launchApp(LOGIN_PROFILE)
     try {
       await expect(window.locator('main').getByText('Dashboard', { exact: true })).toBeVisible({ timeout: 10_000 })
       await expect(window.getByText('Sign In')).not.toBeVisible()

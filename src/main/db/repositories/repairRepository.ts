@@ -63,7 +63,12 @@ export class RepairRepository extends BaseRepository {
           costPrice: input.costPrice ?? 0,
           repairPrice,
           advanceAmount,
-          remainingBalance: repairPrice - advanceAmount,
+          // No payments exist yet at creation, so the full price is owed. The
+          // booking advance (if any) is recorded as a real `advance` Payment
+          // immediately after, inside services/repairService.createRepair,
+          // which then recomputes this to repairPrice - advance. advanceAmount
+          // above is stored only as a display record of that booking advance.
+          remainingBalance: repairPrice,
           priority: input.priority ?? 'normal',
           estimatedDeliveryDate: input.estimatedDeliveryDate ?? null,
           deliveryTime: input.deliveryTime ?? null,
@@ -119,12 +124,15 @@ export class RepairRepository extends BaseRepository {
   }
 
   /**
-   * remainingBalance = repairPrice - advanceAmount - (sum of recorded
-   * payments) on every update, not just when pricing fields change — so
-   * editing device/pricing details after payments already exist (Phase 7)
-   * never silently erases what's already been paid. There are no payments
-   * to subtract in create() since a payment can't exist before its repair
-   * row does (payments.repairId is a foreign key to this table).
+   * remainingBalance = repairPrice - (sum of recorded payments) on every
+   * update. The initial Advance is no longer subtracted separately here —
+   * as of the "every rupee is a Payment" model it is recorded as a real
+   * `advance` Payment row at booking (see services/repairService.createRepair),
+   * so subtracting advanceAmount too would double-count it. advanceAmount is
+   * kept on the row purely as a display record of the booking advance. This
+   * recompute runs on every update (not just when pricing changes) so editing
+   * device/pricing details after payments exist never silently erases what's
+   * already been paid.
    *
    * Also the single enforcement point for the delivered/cancelled status
    * lock: this is the only method any status-changing update reaches
@@ -148,7 +156,6 @@ export class RepairRepository extends BaseRepository {
       }
 
       const repairPrice = patch.repairPrice ?? existing.repairPrice
-      const advanceAmount = patch.advanceAmount ?? existing.advanceAmount
       const totalPaid = this.sumPayments(tx, id)
 
       return (
@@ -156,7 +163,7 @@ export class RepairRepository extends BaseRepository {
           .update(repairs)
           .set({
             ...patch,
-            remainingBalance: repairPrice - advanceAmount - totalPaid,
+            remainingBalance: repairPrice - totalPaid,
             updatedAt: new Date().toISOString()
           })
           .where(eq(repairs.id, id))

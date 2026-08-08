@@ -3,14 +3,12 @@ import type { MouseEvent } from 'react'
 import { Button } from './Button'
 import { ActionMenu } from './ActionMenu'
 import { BilingualText } from './BilingualText'
-import { ConfirmDialog } from './ConfirmDialog'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { repairStatusLabel, isRepairStatusLocked, type RepairStatus } from '@shared/lib/repairStatus'
-import { repairNeedsUdhaarPrompt, createLinkedReceivableUdhaar } from '@shared/lib/udhaarLinking'
-import { formatCurrency } from '@shared/lib/currency'
-import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
+import { DeliverOnCreditModal } from '@features/repairs/DeliverOnCreditModal'
 import type { Repair } from '../../../../main/db/repositories/repairRepository'
+import type { DeliverOnCreditResult } from '../../../../main/db/services/deliveryService'
 
 export interface RepairStatusActionsProps {
   repair: Repair
@@ -38,19 +36,19 @@ export interface RepairStatusActionsProps {
  * one primary button inline; on the full Detail Page there's room to show
  * Revert as its own lighter, secondary button next to the primary one.
  *
- * Marking a repair delivered while it still has an unpaid remainingBalance
- * pauses for one extra question — track the unpaid amount as Udhaar? — via
- * repairNeedsUdhaarPrompt/createLinkedReceivableUdhaar (shared with
- * OverdueDeliveryBanner's own "Mark as Delivered" so the two never drift).
- * Declining never blocks the delivery itself; Udhaar tracking is strictly
- * additive bookkeeping on top of it.
+ * Delivery is now a money event, not just a status flip (Part A):
+ *   • "Mark as Delivered" (primary) = customer pays the full remaining balance
+ *     now — records a `full` Payment for the balance AND marks delivered in one
+ *     atomic call (deliverWithFullPayment). If nothing is owed, it just delivers.
+ *   • "Deliver on Credit" (secondary) opens DeliverOnCreditModal to split the
+ *     balance into a paid portion + a linked receivable Udhaar.
+ * Both replace the old "flip status, then optionally track udhaar" prompt, so
+ * money can never leave the shop unrecorded at the delivery moment.
  */
 export function RepairStatusActions({ repair, onChanged, compact = false, stopRowClick = false }: RepairStatusActionsProps) {
   const textSize = compact ? 'xs' : 'sm'
   const buttonSize = compact ? 'sm' : 'md'
-  const { branding } = useBrandingSettings()
-  const currency = branding?.currency ?? 'PKR'
-  const [confirmingDelivery, setConfirmingDelivery] = useState(false)
+  const [creditModalOpen, setCreditModalOpen] = useState(false)
 
   const changeStatus = (newStatus: RepairStatus) => async () => {
     const previousStatus = repair.status
@@ -67,18 +65,39 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
     }
   }
 
-  const deliver = async (trackAsUdhaar: boolean) => {
-    await changeStatus('delivered')()
-    if (trackAsUdhaar) await createLinkedReceivableUdhaar(repair)
+  const handleMarkDelivered = async () => {
+    const previousStatus = repair.status
+    const result = await window.api.repairs.deliverWithFullPayment(repair.id)
+    onChanged(result.repair)
+    logActivity({
+      actionType: 'status_change',
+      entityType: 'repair',
+      entityId: result.repair.id,
+      description: `Status changed from ${repairStatusLabel[previousStatus].en} to ${repairStatusLabel.delivered.en}${result.payment ? ` — paid in full (${result.payment.amount.toFixed(2)})` : ''}`,
+      metadata: { fromStatus: previousStatus, toStatus: 'delivered', paymentId: result.payment?.id ?? null }
+    })
+  }
+
+  const handleCreditDelivered = (result: DeliverOnCreditResult) => {
+    setCreditModalOpen(false)
+    onChanged(result.repair)
+    logActivity({
+      actionType: 'status_change',
+      entityType: 'repair',
+      entityId: result.repair.id,
+      description: `Delivered on credit${result.payment ? ` — paid ${result.payment.amount.toFixed(2)}` : ''}${result.udhaar ? `, ${result.udhaar.totalAmount.toFixed(2)} on udhaar` : ''}`,
+      metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null, udhaarId: result.udhaar?.id ?? null }
+    })
   }
 
   const handleMarkDeliveredClick = (event: MouseEvent) => {
     if (stopRowClick) event.stopPropagation()
-    if (repairNeedsUdhaarPrompt(repair)) {
-      setConfirmingDelivery(true)
-    } else {
-      void deliver(false)
-    }
+    void handleMarkDelivered()
+  }
+
+  const handleCreditClick = (event: MouseEvent) => {
+    if (stopRowClick) event.stopPropagation()
+    setCreditModalOpen(true)
   }
 
   const handleClick = (action: () => Promise<void>) => (event: MouseEvent) => {
@@ -111,15 +130,29 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
     onClick: () => void changeStatus('pending')()
   }
 
+  // Deliver on Credit only makes sense while money is still owed.
+  const creditItem =
+    repair.remainingBalance > 0
+      ? { label: dictionary.repairs.deliverOnCredit, onClick: () => setCreditModalOpen(true) }
+      : null
+
   return (
     <div className="flex items-center gap-xs">
       <Button variant="primary" size={buttonSize} onClick={handleMarkDeliveredClick}>
         <BilingualText text={dictionary.repairs.markDelivered} size={textSize} align="center" />
       </Button>
       {compact ? (
-        <ActionMenu items={[revertItem, cancelItem]} stopRowClick={stopRowClick} />
+        <ActionMenu
+          items={[...(creditItem ? [creditItem] : []), revertItem, cancelItem]}
+          stopRowClick={stopRowClick}
+        />
       ) : (
         <>
+          {creditItem && (
+            <Button variant="secondary" size={buttonSize} onClick={handleCreditClick}>
+              <BilingualText text={dictionary.repairs.deliverOnCredit} size={textSize} align="center" />
+            </Button>
+          )}
           <Button variant="secondary" size={buttonSize} onClick={handleClick(changeStatus('pending'))}>
             <BilingualText text={dictionary.repairs.revertToPending} size={textSize} align="center" />
           </Button>
@@ -127,26 +160,12 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
         </>
       )}
 
-      <ConfirmDialog
-        open={confirmingDelivery}
-        title={dictionary.udhaar.trackBalancePromptTitle}
-        body={dictionary.udhaar.trackBalancePromptBody}
-        confirmLabel={dictionary.udhaar.trackAsUdhaar}
-        cancelLabel={dictionary.udhaar.skipTracking}
-        onConfirm={() => {
-          setConfirmingDelivery(false)
-          void deliver(true)
-        }}
-        onCancel={() => {
-          setConfirmingDelivery(false)
-          void deliver(false)
-        }}
-      >
-        <div className="rounded-md bg-surface-raised p-md">
-          <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="text-ink-muted" />
-          <p className="mt-0.5 text-lg font-medium text-ink">{formatCurrency(repair.remainingBalance, currency)}</p>
-        </div>
-      </ConfirmDialog>
+      <DeliverOnCreditModal
+        repair={creditModalOpen ? repair : null}
+        open={creditModalOpen}
+        onClose={() => setCreditModalOpen(false)}
+        onDelivered={handleCreditDelivered}
+      />
     </div>
   )
 }

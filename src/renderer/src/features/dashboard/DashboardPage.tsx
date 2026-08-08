@@ -12,6 +12,7 @@ import { ActivityFeedItem } from '@shared/components/ActivityFeedItem'
 import { RepairStatusActions } from '@shared/components/RepairStatusActions'
 import { RepairsIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
+import { useDataSubscription } from '@shared/lib/dataBus'
 import { RecurringReminderBanner } from './RecurringReminderBanner'
 import { OverdueDeliveryBanner } from './OverdueDeliveryBanner'
 import { OverdueUdhaarBanner } from './OverdueUdhaarBanner'
@@ -33,14 +34,53 @@ export function DashboardPage() {
     window.api.udhaar.getSummary().then(setUdhaarSummary)
   }
 
-  // Fired independently (not Promise.all) so one section never blocks another's paint —
-  // each is already a fast, indexed local query, but this keeps the page resilient either way.
-  useEffect(() => {
+  /**
+   * Every dashboard read in one place. Fired independently (not Promise.all)
+   * so one section never blocks another's paint — each is already a fast,
+   * indexed local query, but this keeps the page resilient either way. Kept
+   * as a plain function (not a useCallback) because the mount effect owns its
+   * only long-lived references via the listeners it registers.
+   */
+  const loadAll = () => {
     window.api.dashboard.getSummary().then(setSummary)
     window.api.dashboard.getTodaysDeliveries().then(setDeliveries)
     window.api.dashboard.getRecentRepairs(8).then(setRecentRepairs)
     window.api.listActivity({ limit: 12 }).then(setActivity)
     refreshUdhaarSummary()
+  }
+
+  /**
+   * Settling a repair-linked receivable udhaar now also records a payment on
+   * the repair (see udhaarService.recordUdhaarSettlement), so it moves the
+   * Total Receivables card *and* the money-in cards (Revenue/Profit/Net) and
+   * the repair's own balance in Recent Repairs — refetch all of them, not
+   * just the udhaar summary.
+   */
+  const handleUdhaarChanged = () => {
+    refreshUdhaarSummary()
+    window.api.dashboard.getSummary().then(setSummary)
+    window.api.dashboard.getRecentRepairs(8).then(setRecentRepairs)
+  }
+
+  // Part E: any business write anywhere in the app refreshes every dashboard
+  // card/list live — no navigation or refocus needed.
+  useDataSubscription(['repairs', 'payments', 'udhaar', 'expenses', 'customers'], loadAll)
+
+  useEffect(() => {
+    loadAll()
+    // Belt-and-braces for the one thing the in-app event bus can't see:
+    // returning to the app window from another app (or the OS re-showing it).
+    const onFocus = () => loadAll()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadAll()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /**
@@ -59,6 +99,10 @@ export function DashboardPage() {
     )
     setRecentRepairs((current) => current?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)) ?? current)
     window.api.dashboard.getSummary().then(setSummary)
+    // Delivering an unpaid repair from a dashboard row can create a linked
+    // receivable udhaar (the "track as udhaar?" prompt), so keep Total
+    // Receivables/Payables live too, not just the money-in summary cards.
+    refreshUdhaarSummary()
   }
 
   return (
@@ -80,10 +124,16 @@ export function DashboardPage() {
         }
       />
 
-      <OverdueDeliveryBanner onRepairChanged={handleRepairChanged} />
-      <OverdueUdhaarBanner onChanged={refreshUdhaarSummary} />
-      <MissedCloudBackupBanner />
-      <RecurringReminderBanner />
+      {/* K18: reminders live in one compact, self-scrolling band so that no
+          matter how many are active at once they can never push the summary
+          cards and lists down the page indefinitely. It collapses to zero
+          height when nothing is active (each banner renders null when empty). */}
+      <div className="max-h-72 overflow-y-auto [&>*:last-child]:mb-0">
+        <OverdueDeliveryBanner onRepairChanged={handleRepairChanged} />
+        <OverdueUdhaarBanner onChanged={handleUdhaarChanged} />
+        <MissedCloudBackupBanner />
+        <RecurringReminderBanner />
+      </div>
 
       {/* Today's Deliveries first — operationally the most time-sensitive thing on this screen. */}
       <Card padding="none" className="mb-xl">

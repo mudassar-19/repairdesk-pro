@@ -34,11 +34,13 @@ test.describe.serial('Expenses', () => {
   test('adds a recurring custom-category expense', async () => {
     const RECURRING_DESC = `${DESCRIPTION} Recurring`
     await window.getByRole('button', { name: 'Add Expense' }).click()
-    await window.locator('select').first().selectOption({ label: 'Custom Category…' })
+    // Category options are bilingual now — select the Custom option by value.
+    await window.locator('select').first().selectOption('__custom__')
     await window.getByLabel(/^Custom Category Name/).fill('E2E Custom Category')
     await window.getByLabel(/^Amount/).fill('300')
     await window.getByLabel(/^Description/).fill(RECURRING_DESC)
-    await window.getByLabel(/Recurring Monthly/).check()
+    // "Recurring Monthly" was simplified to a plain "Repeats every month" toggle.
+    await window.getByLabel(/Repeats every month/).check()
     await shoot(window, '06-expenses-recurring-form')
     await window.getByRole('button', { name: 'Save' }).click()
 

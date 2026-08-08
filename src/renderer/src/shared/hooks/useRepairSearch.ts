@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RepairWithCustomer } from '../../../../main/db/repositories/repairRepository'
 import type { RepairStatus } from '@shared/lib/repairStatus'
 import { getDateRangeBounds, type DateRangePreset } from '@shared/lib/dateRangePresets'
+import { useDataSubscription } from '@shared/lib/dataBus'
 
 export interface RepairListFilters {
   search: string
@@ -20,6 +21,8 @@ export function useRepairSearch(
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
   const [refreshTick, setRefreshTick] = useState(0)
+
+  useDataSubscription(['repairs', 'payments', 'customers'], () => setRefreshTick((tick) => tick + 1))
 
   useEffect(() => {
     const thisRequest = ++requestId.current

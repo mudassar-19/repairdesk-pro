@@ -89,6 +89,35 @@ export async function uploadBackup(accessToken: string, filePath: string): Promi
   })
 }
 
+export interface RemoteBackupInfo {
+  /** RFC 3339 timestamp of the backup file's last modification, straight from Drive. */
+  modifiedTime: string
+  sizeBytes: number
+}
+
+/**
+ * Metadata for the one latest backup in the client's Drive folder, or null if
+ * this account has no backup yet — powers the fresh-device "Backup found from
+ * [date] — Restore?" prompt shown right after connecting (Part F).
+ */
+export async function getRemoteBackupInfo(accessToken: string): Promise<RemoteBackupInfo | null> {
+  const folderId = await findFile(accessToken, FOLDER_NAME, FOLDER_MIME_TYPE)
+  if (!folderId) return null
+
+  const clauses = [
+    `name = '${escapeQueryValue(BACKUP_FILE_NAME)}'`,
+    `mimeType = '${BACKUP_MIME_TYPE}'`,
+    'trashed = false',
+    `'${folderId}' in parents`
+  ]
+  const url = `${DRIVE_FILES_ENDPOINT}?q=${encodeURIComponent(clauses.join(' and '))}&fields=files(id,modifiedTime,size)&spaces=drive`
+  const response = await driveFetch(accessToken, url)
+  const json = (await response.json()) as { files?: { id: string; modifiedTime: string; size?: string }[] }
+  const file = json.files?.[0]
+  if (!file) return null
+  return { modifiedTime: file.modifiedTime, sizeBytes: file.size ? Number(file.size) : 0 }
+}
+
 export async function downloadLatestBackup(accessToken: string): Promise<Buffer> {
   const folderId = await findFile(accessToken, FOLDER_NAME, FOLDER_MIME_TYPE)
   if (!folderId) throw new Error('No backup folder found in Google Drive yet')

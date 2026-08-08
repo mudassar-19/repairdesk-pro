@@ -9,6 +9,7 @@ import { dictionary } from '@shared/i18n'
 import { useDuplicatePhoneCheck } from '@shared/hooks/useDuplicatePhoneCheck'
 import { normalizePhone } from '@shared/lib/phone'
 import { logActivity } from '@shared/lib/activityLog'
+import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
 
 const customerFormSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -137,6 +138,7 @@ export function CustomerFormPage() {
 
       <form
         onSubmit={onSubmit}
+        onKeyDown={advanceOnEnter}
         noValidate
         className="flex flex-col gap-md rounded-lg border border-border/60 bg-surface p-xl shadow-card"
       >

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PaymentWithContext } from '../../../../main/db/repositories/paymentRepository'
 import type { PaymentType } from '../../../../main/db/schema'
 import { getDateOnlyRangeBounds, type DateRangePreset } from '@shared/lib/dateRangePresets'
+import { useDataSubscription } from '@shared/lib/dataBus'
 
 export interface PaymentListFilters {
   search: string
@@ -16,6 +17,10 @@ export function useAllPaymentsSearch(filters: PaymentListFilters): { results: Pa
   const [results, setResults] = useState<PaymentWithContext[]>([])
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  // Live refresh whenever a payment (or its repair context) changes anywhere.
+  useDataSubscription(['payments', 'repairs'], () => setRefreshTick((tick) => tick + 1))
 
   useEffect(() => {
     const thisRequest = ++requestId.current
@@ -41,7 +46,7 @@ export function useAllPaymentsSearch(filters: PaymentListFilters): { results: Pa
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [filters.search, filters.type, filters.datePreset, filters.customFrom, filters.customTo])
+  }, [filters.search, filters.type, filters.datePreset, filters.customFrom, filters.customTo, refreshTick])
 
   return { results, loading }
 }

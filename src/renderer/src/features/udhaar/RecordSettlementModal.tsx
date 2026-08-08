@@ -44,10 +44,13 @@ export function RecordSettlementModal({ entry, open, onClose, onRecorded }: Reco
   const [pendingOverpayment, setPendingOverpayment] = useState<NewUdhaarSettlementInput | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const [lockedFull, setLockedFull] = useState(false)
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting }
   } = useForm<SettlementFormValues>({ resolver: zodResolver(settlementFormSchema), defaultValues })
 
@@ -55,6 +58,19 @@ export function RecordSettlementModal({ entry, open, onClose, onRecorded }: Reco
     reset(defaultValues)
     setPendingOverpayment(null)
     setSubmitError(null)
+    setLockedFull(false)
+  }
+
+  // "Full" quick option (Part D): fill the remaining balance and lock the
+  // input so one confirm settles the entry in full. Any manual edit unlocks.
+  const applyFull = () => {
+    if (!entry) return
+    if (lockedFull) {
+      setLockedFull(false)
+      return
+    }
+    setValue('amount', String(entry.remainingBalance), { shouldValidate: true })
+    setLockedFull(true)
   }
 
   const performSave = async (input: NewUdhaarSettlementInput) => {
@@ -143,11 +159,31 @@ export function RecordSettlementModal({ entry, open, onClose, onRecorded }: Reco
               </p>
             )}
 
-            <label className="flex flex-col gap-1">
-              <BilingualText text={dictionary.udhaar.settlementAmount} size="sm" className="text-ink-muted" />
-              <input type="text" inputMode="decimal" autoFocus className={inputClass} {...register('amount')} />
+            <div className="flex flex-col gap-1">
+              {/* The Full pill sits OUTSIDE the input's label so its own
+                  accessible name stays "Full" (a button nested in a <label>
+                  inherits the label's name instead). */}
+              <div className="flex items-center justify-between">
+                <BilingualText text={dictionary.udhaar.settlementAmount} size="sm" className="text-ink-muted" />
+                <button
+                  type="button"
+                  onClick={applyFull}
+                  className="rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                >
+                  {dictionary.udhaar.settleFull.en}
+                </button>
+              </div>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoFocus
+                disabled={lockedFull}
+                aria-label={dictionary.udhaar.settlementAmount.en}
+                className={`${inputClass} ${lockedFull ? 'cursor-not-allowed opacity-60' : ''}`}
+                {...register('amount', { onChange: () => setLockedFull(false) })}
+              />
               {errors.amount && <span className="text-xs text-danger">{errors.amount.message}</span>}
-            </label>
+            </div>
 
             <label className="flex flex-col gap-1">
               <BilingualText text={dictionary.udhaar.settlementDate} size="sm" className="text-ink-muted" />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Expense } from '../../../../main/db/repositories/expenseRepository'
 import { getDateOnlyRangeBounds, type DateRangePreset } from '@shared/lib/dateRangePresets'
+import { useDataSubscription } from '@shared/lib/dataBus'
 
 export interface ExpenseListFilters {
   category: string | 'all'
@@ -18,6 +19,9 @@ export function useExpenseSearch(filters: ExpenseListFilters): { results: Expens
   const [results, setResults] = useState<Expense[]>([])
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  useDataSubscription(['expenses'], () => setRefreshTick((tick) => tick + 1))
 
   useEffect(() => {
     const thisRequest = ++requestId.current
@@ -42,7 +46,7 @@ export function useExpenseSearch(filters: ExpenseListFilters): { results: Expens
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [filters.category, filters.datePreset, filters.customFrom, filters.customTo])
+  }, [filters.category, filters.datePreset, filters.customFrom, filters.customTo, refreshTick])
 
   return { results, loading }
 }

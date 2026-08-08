@@ -8,7 +8,7 @@ import { PageHeader } from '@shared/components/PageHeader'
 import { ExpensesIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
 import { useExpenseSearch } from '@shared/hooks/useExpenseSearch'
-import { expenseCategoryValues, categoryLabel } from '@shared/lib/expenseCategory'
+import { expenseCategoryValues, expenseCategoryLabel, categoryLabel } from '@shared/lib/expenseCategory'
 import type { DateRangePreset } from '@shared/lib/dateRangePresets'
 
 const selectClass =
@@ -40,10 +40,12 @@ export function ExpensesPage() {
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.expenses.category} size="sm" className="text-ink-muted" />
           <select value={category} onChange={(event) => setCategory(event.target.value)} className={selectClass}>
-            <option value="all">{dictionary.expenses.allCategories.en}</option>
+            <option value="all">
+              {dictionary.expenses.allCategories.en} — {dictionary.expenses.allCategories.ur}
+            </option>
             {expenseCategoryValues.map((value) => (
               <option key={value} value={value}>
-                {categoryLabel(value)}
+                {expenseCategoryLabel[value].en} — {expenseCategoryLabel[value].ur}
               </option>
             ))}
           </select>

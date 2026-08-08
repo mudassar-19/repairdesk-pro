@@ -9,6 +9,7 @@ import { SummaryCard } from '@shared/components/SummaryCard'
 import { UdhaarIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
 import { useUdhaarSearch, type OverdueFilter } from '@shared/hooks/useUdhaarSearch'
+import { useDataSubscription } from '@shared/lib/dataBus'
 import { udhaarStatusLabel, udhaarStatusBadgeClass, dueDateStatusLabel } from '@shared/lib/udhaar'
 import { formatCurrency } from '@shared/lib/currency'
 import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
@@ -46,6 +47,8 @@ export function UdhaarPage() {
   useEffect(() => {
     loadTotals()
   }, [])
+  // Keep the receivables/payables totals live when udhaar changes anywhere.
+  useDataSubscription(['udhaar'], loadTotals)
 
   const handleExtendDueDate = async (entry: Udhaar, newDate: string) => {
     if (!newDate) return

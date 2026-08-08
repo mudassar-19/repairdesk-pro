@@ -21,6 +21,21 @@ export const dictionary = {
     activity: { en: 'Activity', ur: 'سرگرمی' },
     settings: { en: 'Settings', ur: 'ترتیبات' }
   },
+  pos: {
+    title: { en: 'POS Mode', ur: 'پی او ایس موڈ' },
+    switchToPos: { en: 'Switch to POS Mode', ur: 'پی او ایس موڈ پر جائیں' },
+    switchToDashboard: { en: 'Switch to Dashboard', ur: 'ڈیش بورڈ پر جائیں' },
+    newOrder: { en: 'New Order', ur: 'نیا آرڈر' },
+    orderSummary: { en: 'Order Summary', ur: 'آرڈر کا خلاصہ' },
+    selectCustomerFirst: { en: 'Select or create a customer first.', ur: 'پہلے گاہک منتخب یا بنائیں۔' },
+    orderStatus: { en: 'How is this order leaving?', ur: 'یہ آرڈر کیسے جا رہا ہے؟' },
+    statusPending: { en: 'In for repair (Pending)', ur: 'مرمت کے لیے (زیر التواء)' },
+    statusDeliveredPaid: { en: 'Taking now — Paid in full', ur: 'ابھی لے جا رہے ہیں — مکمل ادائیگی' },
+    statusDeliveredCredit: { en: 'Taking now — On credit', ur: 'ابھی لے جا رہے ہیں — اُدھار پر' },
+    saveAndPrint: { en: 'Save & Print Receipt', ur: 'محفوظ کریں اور رسید پرنٹ کریں' },
+    saving: { en: 'Saving…', ur: 'محفوظ ہو رہا ہے…' },
+    readyForNext: { en: 'Order saved. Ready for the next customer.', ur: 'آرڈر محفوظ ہو گیا۔ اگلے گاہک کے لیے تیار۔' }
+  },
   auth: {
     signIn: { en: 'Sign In', ur: 'سائن ان' },
     email: { en: 'Email', ur: 'ای میل' },
@@ -129,7 +144,17 @@ export const dictionary = {
     reconnect: { en: 'Reconnect Google Drive', ur: 'گوگل ڈرائیو دوبارہ منسلک کریں' },
     connecting: { en: 'Waiting for Google sign-in…', ur: 'گوگل سائن ان کا انتظار ہے…' },
     disconnect: { en: 'Disconnect', ur: 'منقطع کریں' },
-    connectFailed: { en: 'Could not connect Google Drive', ur: 'گوگل ڈرائیو منسلک نہیں ہو سکی' }
+    connectFailed: { en: 'Could not connect Google Drive', ur: 'گوگل ڈرائیو منسلک نہیں ہو سکی' },
+    checkingBackup: { en: 'Checking for an existing backup…', ur: 'موجودہ بیک اپ کی جانچ ہو رہی ہے…' },
+    backupFoundTitle: { en: 'Backup found in this Google account', ur: 'اس گوگل اکاؤنٹ میں بیک اپ ملا' },
+    backupFoundBody: { en: 'A backup from {when} was found. Restore it onto this device, or start fresh.', ur: '{when} کا بیک اپ ملا۔ اسے اس ڈیوائس پر بحال کریں، یا نئے سرے سے شروع کریں۔' },
+    restoreThisBackup: { en: 'Restore this backup', ur: 'یہ بیک اپ بحال کریں' },
+    startFresh: { en: 'Start fresh', ur: 'نئے سرے سے شروع کریں' },
+    restoringBackup: { en: 'Restoring — the app will restart…', ur: 'بحال ہو رہا ہے — ایپ دوبارہ شروع ہوگی…' },
+    freshWarning: {
+      en: 'Starting fresh: your existing cloud backup will be replaced the next time a scheduled backup runs.',
+      ur: 'نئے سرے سے شروع: اگلی بار طے شدہ بیک اپ چلنے پر آپ کا موجودہ کلاؤڈ بیک اپ تبدیل ہو جائے گا۔'
+    }
   },
   activity: {
     title: { en: 'Activity Timeline', ur: 'سرگرمی کی ٹائم لائن' },
@@ -241,6 +266,13 @@ export const dictionary = {
       ur: 'آپ نے اس مہینے بجلی کا بل درج نہیں کیا'
     },
     logNow: { en: 'Log Now', ur: 'ابھی درج کریں' },
+    recurringDueTitle: { en: 'Recurring expenses to confirm', ur: 'تکراری اخراجات کی تصدیق کریں' },
+    recurringDueBody: {
+      en: "These monthly expenses haven't been logged yet — add a ready-made draft with one tap.",
+      ur: 'یہ ماہانہ اخراجات ابھی درج نہیں ہوئے — ایک کلک سے تیار مسودہ شامل کریں۔'
+    },
+    addDraft: { en: 'Add', ur: 'شامل کریں' },
+    lastMonthAmount: { en: 'last month', ur: 'پچھلا مہینہ' },
     overdueDeliveries: { en: 'Overdue Deliveries', ur: 'تاخیر سے ڈیلیوریاں' },
     overdueDeliveriesBody: {
       en: 'These repairs are past their estimated delivery date and still need action.',
@@ -264,12 +296,21 @@ export const dictionary = {
     deviceBrand: { en: 'Device Brand', ur: 'ڈیوائس برانڈ' },
     deviceModel: { en: 'Device Model', ur: 'ڈیوائس ماڈل' },
     issue: { en: 'Issue', ur: 'مسئلہ' },
+    commonIssuesLabel: { en: 'Common issues', ur: 'عام مسائل' },
+    costPriceHint: {
+      en: 'Cost Price not entered — profit may be inaccurate for this repair.',
+      ur: 'لاگت قیمت درج نہیں — اس مرمت کا منافع غلط ہو سکتا ہے۔'
+    },
+    advanceLockedHint: {
+      en: 'The booking advance is fixed. To record more money, use Record Payment.',
+      ur: 'بکنگ ایڈوانس مقرر ہے۔ مزید رقم کے لیے ادائیگی درج کریں استعمال کریں۔'
+    },
     accessories: { en: 'Accessories', ur: 'لوازمات' },
     imei: { en: 'IMEI', ur: 'آئی ایم ای آئی' },
     estimatedDeliveryDate: { en: 'Estimated Delivery Date', ur: 'متوقع ڈیلیوری تاریخ' },
     deliveryTime: { en: 'Delivery Time', ur: 'ڈیلیوری وقت' },
     costPrice: { en: 'Cost Price', ur: 'لاگت قیمت' },
-    repairPrice: { en: 'Repair Price', ur: 'مرمت قیمت' },
+    repairPrice: { en: 'Total Price', ur: 'کل قیمت' },
     advanceAmount: { en: 'Advance Amount', ur: 'ایڈوانس رقم' },
     remainingBalance: { en: 'Remaining Balance', ur: 'باقی رقم' },
     priority: { en: 'Priority', ur: 'ترجیح' },
@@ -285,6 +326,15 @@ export const dictionary = {
     changeStatus: { en: 'Change Status', ur: 'حالت تبدیل کریں' },
     markCompleted: { en: 'Mark as Completed', ur: 'مکمل نشان زد کریں' },
     markDelivered: { en: 'Mark as Delivered', ur: 'ڈیلیور شدہ نشان زد کریں' },
+    deliverOnCredit: { en: 'Deliver on Credit', ur: 'اُدھار پر ڈیلیور کریں' },
+    deliverOnCreditTitle: { en: 'Deliver on Credit', ur: 'اُدھار پر ڈیلیوری' },
+    deliverOnCreditBody: { en: 'How much of the balance stays on credit (Udhaar)? The rest is recorded as paid now.', ur: 'باقی رقم میں سے کتنی اُدھار پر رہے گی؟ باقی ابھی وصول شدہ درج ہو گی۔' },
+    onCreditAmount: { en: 'Amount on Credit (Udhaar)', ur: 'اُدھار کی رقم' },
+    payingNow: { en: 'Paying now', ur: 'ابھی ادائیگی' },
+    onCreditLabel: { en: 'On credit', ur: 'اُدھار پر' },
+    quickFull: { en: '100% (all on credit)', ur: '۱۰۰٪ (سب اُدھار)' },
+    quickHalf: { en: '50%', ur: '۵۰٪' },
+    confirmDeliver: { en: 'Confirm & Deliver', ur: 'تصدیق و ڈیلیور' },
     revertToPending: { en: 'Revert to Pending', ur: 'زیر التواء پر واپس کریں' },
     cancelOrder: { en: 'Cancel Order', ur: 'آرڈر منسوخ کریں' },
     statusLocked: { en: 'This repair is locked — no further changes allowed', ur: 'یہ مرمت مقفل ہے — مزید تبدیلی ممکن نہیں' },
@@ -334,6 +384,7 @@ export const dictionary = {
     cancel: { en: 'Cancel', ur: 'منسوخ کریں' },
     paymentHistory: { en: 'Payment History', ur: 'ادائیگیوں کی تاریخ' },
     noPaymentsYet: { en: 'No payments recorded yet', ur: 'ابھی تک کوئی ادائیگی درج نہیں' },
+    paymentOf: { en: '{n} of {m} payments', ur: '{m} میں سے {n}' },
     overpaymentTitle: { en: 'Amount exceeds remaining balance', ur: 'رقم باقی رقم سے زیادہ ہے' },
     overpaymentBody: {
       en: 'This payment is more than what is currently owed. Record it anyway?',
@@ -367,7 +418,11 @@ export const dictionary = {
     amount: { en: 'Amount', ur: 'رقم' },
     description: { en: 'Description', ur: 'تفصیل' },
     expenseDate: { en: 'Expense Date', ur: 'خرچ کی تاریخ' },
-    isRecurring: { en: 'Recurring Monthly', ur: 'ماہانہ تکراری' },
+    isRecurring: { en: 'Repeats every month', ur: 'ہر مہینہ دہرائیں' },
+    isRecurringHint: {
+      en: 'Next month, the Dashboard will offer a ready-to-confirm draft of this expense.',
+      ur: 'اگلے مہینے، ڈیش بورڈ اس خرچ کا تیار مسودہ تصدیق کے لیے پیش کرے گا۔'
+    },
     recurringMonth: { en: 'Recurring Month', ur: 'تکراری مہینہ' },
     save: { en: 'Save Expense', ur: 'خرچہ محفوظ کریں' },
     cancel: { en: 'Cancel', ur: 'منسوخ کریں' },
@@ -415,6 +470,7 @@ export const dictionary = {
     searchPlaceholder: { en: 'Search by name or phone', ur: 'نام یا فون نمبر سے تلاش کریں' },
     recordSettlement: { en: 'Record Settlement', ur: 'ادائیگی درج کریں' },
     settlementAmount: { en: 'Settlement Amount', ur: 'ادائیگی کی رقم' },
+    settleFull: { en: 'Full', ur: 'مکمل' },
     settlementDate: { en: 'Settlement Date', ur: 'ادائیگی کی تاریخ' },
     extendDueDate: { en: 'Extend Due Date', ur: 'تاریخ بڑھائیں' },
     emptyTitle: { en: 'No Udhaar entries yet', ur: 'ابھی کوئی ادھار درج نہیں' },

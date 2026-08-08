@@ -153,7 +153,23 @@ export function PaymentsPage() {
                     <p className="text-xs text-ink-muted">{payment.customerPhone}</p>
                   </td>
                   <td className="px-lg py-md text-sm text-ink-muted">
-                    {payment.deviceBrand} {payment.deviceModel}
+                    <div className="flex flex-col gap-0.5">
+                      <span>
+                        {payment.deviceBrand} {payment.deviceModel}
+                      </span>
+                      <span className="flex items-center gap-1.5 text-xs">
+                        <span className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-[11px] text-ink-muted">
+                          #{payment.repairId.slice(-6).toUpperCase()}
+                        </span>
+                        {payment.repairPaymentCount > 1 && (
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                            {dictionary.payments.paymentOf.en
+                              .replace('{n}', String(payment.repairPaymentIndex))
+                              .replace('{m}', String(payment.repairPaymentCount))}
+                          </span>
+                        )}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-lg py-md text-sm text-ink-muted">{paymentTypeLabel[payment.type].en}</td>
                   <td className="px-lg py-md text-right text-sm font-medium tabular-nums text-ink">

@@ -27,7 +27,7 @@ test.describe.serial('Payments', () => {
     await window.getByLabel(/Device Brand/).fill('Xiaomi')
     await window.getByLabel(/Device Model/).fill(DEVICE_MODEL)
     await window.locator('textarea').first().fill('E2E test: payment flow')
-    await window.getByLabel(/^Repair Price/).fill('4000')
+    await window.getByLabel(/Total Price/).fill('4000')
     await window.getByRole('button', { name: 'Save' }).click()
     await expect(window.getByText(DEVICE_MODEL)).toBeVisible({ timeout: 10_000 })
   })

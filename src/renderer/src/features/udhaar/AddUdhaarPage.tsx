@@ -80,7 +80,7 @@ export function AddUdhaarPage() {
   })
 
   return (
-    <div className="flex max-w-lg flex-1 flex-col">
+    <div className="flex max-w-3xl flex-1 flex-col">
       <BilingualText text={dictionary.udhaar.addNew} as="div" size="xl" className="mb-xl" />
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-md rounded-lg border border-border/60 bg-surface p-xl shadow-card">
@@ -148,7 +148,7 @@ export function AddUdhaarPage() {
               }}
             />
           ) : (
-            <div className="flex flex-col gap-md">
+            <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
               <label className="flex flex-col gap-1">
                 <BilingualText text={dictionary.udhaar.personName} size="sm" className="text-ink-muted" />
                 <input type="text" className={inputClass} {...register('personName')} />
@@ -162,16 +162,18 @@ export function AddUdhaarPage() {
           {personError && <span className="text-xs text-danger">Select a customer or enter a name.</span>}
         </div>
 
-        <label className="flex flex-col gap-1">
-          <BilingualText text={dictionary.udhaar.amount} size="sm" className="text-ink-muted" />
-          <input type="text" inputMode="decimal" className={inputClass} {...register('amount')} />
-          {errors.amount && <span className="text-xs text-danger">{errors.amount.message}</span>}
-        </label>
+        <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <BilingualText text={dictionary.udhaar.amount} size="sm" className="text-ink-muted" />
+            <input type="text" inputMode="decimal" className={inputClass} {...register('amount')} />
+            {errors.amount && <span className="text-xs text-danger">{errors.amount.message}</span>}
+          </label>
 
-        <label className="flex flex-col gap-1">
-          <BilingualText text={dictionary.udhaar.dueDateOptionalField} size="sm" className="text-ink-muted" />
-          <input type="date" className={inputClass} {...register('dueDate')} />
-        </label>
+          <label className="flex flex-col gap-1">
+            <BilingualText text={dictionary.udhaar.dueDateOptionalField} size="sm" className="text-ink-muted" />
+            <input type="date" className={inputClass} {...register('dueDate')} />
+          </label>
+        </div>
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.udhaar.notes} size="sm" className="text-ink-muted" />

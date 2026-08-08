@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { signInWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { firebaseAuth } from '@shared/lib/firebase'
 import { BilingualText } from '@shared/components/BilingualText'
 import { dictionary } from '@shared/i18n'
@@ -53,7 +53,7 @@ export function AuthPage() {
       const credential = await signInWithEmailAndPassword(firebaseAuth, email, password)
       const deviceId = await window.api.auth.getDeviceId()
 
-      await window.api.auth.saveLocalSession({
+      const result = await window.api.auth.saveLocalSession({
         uid: credential.user.uid,
         email: credential.user.email ?? email,
         deviceId,
@@ -61,14 +61,25 @@ export function AuthPage() {
         issuedAt: new Date().toISOString()
       })
 
+      // Device-lock (Part H): the credentials were valid but this install is
+      // bound to a different account — refuse access and don't keep a Firebase
+      // session hanging around on a device this user isn't allowed to use.
+      if (!result.ok) {
+        await signOut(firebaseAuth).catch(() => {})
+        if (mountedRef.current) {
+          setFormError(
+            result.reason === 'device-locked'
+              ? `This device is registered to a different account${result.ownerEmail ? ` (${result.ownerEmail})` : ''}. Please use that account, or contact your administrator to re-register this device.`
+              : 'OS-level encryption is not available on this device, so a session cannot be saved securely.'
+          )
+        }
+        return
+      }
+
       // Auth is fully established the moment the encrypted session is on
       // disk — flip state right here so the Dashboard redirect fires
       // immediately. Activity logging is an auxiliary side effect (local log
-      // entry only); it isn't awaited in the critical path, and can't throw
-      // into the catch below and strand the user on this screen after the
-      // real work already succeeded — that mismatch (session saved, but a
-      // later best-effort step throwing before setAuthenticated ran) was
-      // the actual bug.
+      // entry only); it isn't awaited in the critical path.
       if (mountedRef.current) setAuthenticated({ uid: credential.user.uid, email: credential.user.email ?? email }, deviceId)
 
       window.api

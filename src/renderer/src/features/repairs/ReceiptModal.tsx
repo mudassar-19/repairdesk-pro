@@ -5,6 +5,7 @@ import { PrintBrandingHeader } from '@shared/components/PrintBrandingHeader'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { RECEIPT_PDF_PAGE_SIZE } from '@shared/lib/receiptPageSize'
+import { receiptFileName } from '@shared/lib/receiptFilename'
 import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
 import { useReceiptSettings } from '@shared/hooks/useReceiptSettings'
 import { formatCurrency } from '@shared/lib/currency'
@@ -60,7 +61,7 @@ export function ReceiptModal({ repair, customer, open, onClose }: ReceiptModalPr
   const handleExportPdf = async () => {
     setExporting(true)
     setMessage(null)
-    const fileName = `Receipt-${receiptNo}.pdf`
+    const fileName = receiptFileName(customer?.name, repair.deviceBrand, repair.deviceModel, repair.id)
     // 'none' — this app's own CSS padding is the only spacing that should
     // apply on an already-narrow 3.15in page; see print.ts's exportPdf handler.
     const result = await window.api.print.exportPdf(fileName, RECEIPT_PDF_PAGE_SIZE, 'none')

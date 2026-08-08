@@ -37,13 +37,9 @@ test.describe.serial('Dashboard reminder banners', () => {
     const countBadgeBefore = await banner.locator('div.flex.items-center.gap-2 > span').last().innerText()
 
     const firstRow = banner.locator('div.flex.flex-wrap.items-center.justify-between.gap-md.px-lg.py-md').first()
+    // "Mark as Delivered" now records the full remaining balance as a payment
+    // and delivers in one step — no track-as-Udhaar prompt any more.
     await firstRow.getByRole('button', { name: 'Mark as Delivered' }).click()
-
-    // May or may not prompt to track the remaining balance as Udhaar depending on the repair.
-    const trackPrompt = window.getByRole('button', { name: 'No, Just Deliver' })
-    if (await trackPrompt.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await trackPrompt.click()
-    }
 
     await expect(async () => {
       const countBadgeAfter = await banner.locator('div.flex.items-center.gap-2 > span').last().innerText()
@@ -78,7 +74,7 @@ test.describe.serial('Dashboard reminder banners', () => {
     const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : '100'
 
     await firstRow.getByRole('button', { name: 'Record Settlement' }).click()
-    await window.getByLabel(/Amount/).fill(amount)
+    await window.getByLabel('Settlement Amount', { exact: true }).fill(amount)
     await shoot(window, '08-overdue-udhaar-settlement-form')
     await window.getByRole('button', { name: 'Save' }).click()
 

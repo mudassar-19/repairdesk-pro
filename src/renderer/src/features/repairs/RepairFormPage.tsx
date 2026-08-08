@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
@@ -9,34 +8,13 @@ import { CustomerPicker } from '@shared/components/CustomerPicker'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { repairPriorityValues, repairPriorityLabel } from '@shared/lib/repairStatus'
+import { repairFormSchema, repairFormDefaults, toNumber, buildRepairPayload, type RepairFormValues } from './repairForm'
+import { commonIssues } from '@shared/lib/commonIssues'
+import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
-
-const moneyField = z
-  .string()
-  .trim()
-  .refine((value) => value === '' || /^\d+(\.\d{1,2})?$/.test(value), 'Enter a valid amount')
-
-const repairFormSchema = z.object({
-  deviceBrand: z.string().trim().min(1, 'Device brand is required'),
-  deviceModel: z.string().trim().min(1, 'Device model is required'),
-  issue: z.string().trim().min(1, 'Issue description is required'),
-  accessories: z.string().trim().optional(),
-  imei: z.string().trim().optional(),
-  estimatedDeliveryDate: z.string().trim().optional(),
-  deliveryTime: z.string().trim().optional(),
-  costPrice: moneyField,
-  repairPrice: moneyField,
-  advanceAmount: moneyField,
-  priority: z.enum(repairPriorityValues),
-  notes: z.string().trim().optional()
-})
-
-type RepairFormValues = z.infer<typeof repairFormSchema>
 
 const inputClass =
   'rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20'
-
-const toNumber = (value: string): number => (value ? Number(value) : 0)
 
 export function RepairFormPage() {
   const navigate = useNavigate()
@@ -54,23 +32,11 @@ export function RepairFormPage() {
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors, isSubmitting }
   } = useForm<RepairFormValues>({
     resolver: zodResolver(repairFormSchema),
-    defaultValues: {
-      deviceBrand: '',
-      deviceModel: '',
-      issue: '',
-      accessories: '',
-      imei: '',
-      estimatedDeliveryDate: '',
-      deliveryTime: '',
-      costPrice: '',
-      repairPrice: '',
-      advanceAmount: '',
-      priority: 'normal',
-      notes: ''
-    }
+    defaultValues: repairFormDefaults
   })
 
   useEffect(() => {
@@ -104,6 +70,8 @@ export function RepairFormPage() {
   const repairPrice = toNumber(watch('repairPrice'))
   const advanceAmount = toNumber(watch('advanceAmount'))
   const remainingBalance = repairPrice - advanceAmount
+  const costPriceValue = watch('costPrice')
+  const showCostHint = !costPriceValue || Number(costPriceValue) === 0
 
   const onSubmit = handleSubmit(async (values) => {
     if (!selectedCustomer) {
@@ -113,21 +81,7 @@ export function RepairFormPage() {
     setCustomerError(false)
     setSubmitError(null)
 
-    const payload = {
-      customerId: selectedCustomer.id,
-      deviceBrand: values.deviceBrand.trim(),
-      deviceModel: values.deviceModel.trim(),
-      issue: values.issue.trim(),
-      accessories: values.accessories?.trim() || null,
-      imei: values.imei?.trim() || null,
-      estimatedDeliveryDate: values.estimatedDeliveryDate?.trim() || null,
-      deliveryTime: values.deliveryTime?.trim() || null,
-      costPrice: toNumber(values.costPrice),
-      repairPrice: toNumber(values.repairPrice),
-      advanceAmount: toNumber(values.advanceAmount),
-      priority: values.priority,
-      notes: values.notes?.trim() || null
-    }
+    const payload = buildRepairPayload(values, selectedCustomer.id)
 
     try {
       if (isEdit && id) {
@@ -188,6 +142,7 @@ export function RepairFormPage() {
 
       <form
         onSubmit={onSubmit}
+        onKeyDown={advanceOnEnter}
         noValidate
         className="flex flex-col gap-md rounded-lg border border-border/60 bg-surface p-xl shadow-card"
       >
@@ -236,6 +191,19 @@ export function RepairFormPage() {
           <BilingualText text={dictionary.repairs.issue} size="sm" className="text-ink-muted" />
           <textarea rows={2} className={inputClass} {...register('issue')} />
           {errors.issue && <span className="text-xs text-danger">{errors.issue.message}</span>}
+          {/* J14: quick-select common issues (bilingual). Tapping fills the field; still fully editable. */}
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {commonIssues.map((chip) => (
+              <button
+                key={chip.en}
+                type="button"
+                onClick={() => setValue('issue', chip.en, { shouldValidate: true })}
+                className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              >
+                <BilingualText text={chip} size="xs" align="center" />
+              </button>
+            ))}
+          </div>
         </label>
 
         <div className="grid grid-cols-2 gap-md">
@@ -276,6 +244,12 @@ export function RepairFormPage() {
             <input type="text" inputMode="decimal" className={inputClass} {...register('costPrice')} />
             {errors.costPrice && <span className="text-xs text-danger">{errors.costPrice.message}</span>}
           </label>
+          {/* J17: gentle, non-blocking reminder — never a hard validation error. */}
+          {showCostHint && (
+            <div className="col-span-4">
+              <BilingualText text={dictionary.repairs.costPriceHint} size="xs" className="text-warning" />
+            </div>
+          )}
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.repairPrice} size="sm" className="text-ink-muted" />
             <input type="text" inputMode="decimal" className={inputClass} {...register('repairPrice')} />
@@ -283,7 +257,17 @@ export function RepairFormPage() {
           </label>
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.advanceAmount} size="sm" className="text-ink-muted" />
-            <input type="text" inputMode="decimal" className={inputClass} {...register('advanceAmount')} />
+            {/* Advance is captured (as a real Payment) at booking only. On edit
+                it is read-only — changing money received afterwards goes through
+                Record Payment, so the displayed advance can't drift from it. */}
+            <input
+              type="text"
+              inputMode="decimal"
+              readOnly={isEdit}
+              title={isEdit ? dictionary.repairs.advanceLockedHint.en : undefined}
+              className={`${inputClass} ${isEdit ? 'cursor-not-allowed bg-surface-raised text-ink-muted' : ''}`}
+              {...register('advanceAmount')}
+            />
             {errors.advanceAmount && <span className="text-xs text-danger">{errors.advanceAmount.message}</span>}
           </label>
           <div className="flex flex-col gap-1">

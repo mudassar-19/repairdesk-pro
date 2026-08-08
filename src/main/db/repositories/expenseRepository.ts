@@ -111,6 +111,33 @@ export class ExpenseRepository extends BaseRepository {
     return Boolean(row)
   }
 
+  /**
+   * Recurring auto-draft (Part J#16): every category the shop has ever marked
+   * "recurring" that has NOT been logged yet this calendar month, paired with
+   * the amount from its most recent recurring entry — so the Dashboard can
+   * offer a one-click pre-filled draft instead of a bare reminder. Returns []
+   * for a brand-new shop that hasn't marked anything recurring yet.
+   */
+  findRecurringDrafts(): { category: string; amount: number }[] {
+    const recurring = this.db
+      .select({ category: expenses.category, amount: expenses.amount })
+      .from(expenses)
+      .where(and(eq(expenses.isDeleted, false), eq(expenses.isRecurring, true)))
+      .orderBy(desc(expenses.expenseDate), desc(expenses.createdAt))
+      .all()
+
+    const latestByCategory = new Map<string, number>()
+    for (const row of recurring) {
+      if (!latestByCategory.has(row.category)) latestByCategory.set(row.category, row.amount)
+    }
+
+    const drafts: { category: string; amount: number }[] = []
+    for (const [category, amount] of latestByCategory) {
+      if (!this.hasEntryForCurrentMonth(category)) drafts.push({ category, amount })
+    }
+    return drafts
+  }
+
   /** Expense breakdown by category for the Reports module — GROUP BY in SQL, not a lump sum plus manual bucketing in JS. */
   sumByCategoryInRange(dateFrom: string, dateTo: string): { category: string; total: number }[] {
     return this.db

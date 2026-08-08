@@ -53,6 +53,27 @@ export function seedQaData(profileDir: string): Promise<void> {
   })
 }
 
+/**
+ * Establishes an authenticated session WITHOUT Firebase (offline-first): injects
+ * a local session via the app's own IPC, then reloads so useAuthBootstrap picks
+ * it up — mirrors scripts/e2e-setup-session.js. Lets a spec run on a fresh
+ * profile without real credentials.
+ */
+export async function authenticateOffline(window: Page): Promise<void> {
+  const deviceId = await window.evaluate(() => window.api.auth.getDeviceId())
+  await window.evaluate(async (id) => {
+    await window.api.auth.saveLocalSession({
+      uid: 'qa-e2e-test-uid',
+      email: 'qa-e2e@repairdesk.local',
+      deviceId: id,
+      refreshToken: 'not-real',
+      issuedAt: new Date().toISOString()
+    })
+  }, deviceId)
+  await window.reload()
+  await window.waitForLoadState('domcontentloaded')
+}
+
 export const SHOTS_DIR = path.join(REPO_ROOT, 'e2e/report/screenshots')
 
 export async function shoot(window: Page, name: string): Promise<void> {

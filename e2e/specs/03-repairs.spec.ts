@@ -38,7 +38,7 @@ test.describe.serial('Repairs', () => {
     await window.getByLabel(/Device Model/).fill(DEVICE_MODEL_A)
     await window.locator('textarea').first().fill('E2E test: cracked screen')
     await window.getByLabel(/^Cost Price/).fill('2000')
-    await window.getByLabel(/^Repair Price/).fill('5000')
+    await window.getByLabel(/Total Price/).fill('5000')
     await window.getByLabel(/^Advance Amount/).fill('5000')
     await shoot(window, '03-repairs-new-form-new-customer')
 
@@ -53,7 +53,9 @@ test.describe.serial('Repairs', () => {
     await window.getByRole('button', { name: 'Mark as Completed' }).click()
     await expect(window.getByText('Completed', { exact: true }).first()).toBeVisible({ timeout: 5_000 })
 
-    // Fully paid (advance == price), so no "track as Udhaar" prompt should appear.
+    // Fully paid up front (advance == total), so "Mark as Delivered" records no
+    // new payment — it just delivers. (There is no "Deliver on Credit" option
+    // here since nothing is owed.)
     await window.getByRole('button', { name: 'Mark as Delivered' }).click()
     await expect(window.getByText('Delivered', { exact: true }).first()).toBeVisible({ timeout: 5_000 })
     await shoot(window, '03-repairs-delivered')
@@ -83,7 +85,7 @@ test.describe.serial('Repairs', () => {
     await window.getByLabel(/Device Brand/).fill('Apple')
     await window.getByLabel(/Device Model/).fill(DEVICE_MODEL_B)
     await window.locator('textarea').first().fill('E2E test: battery replacement')
-    await window.getByLabel(/^Repair Price/).fill('3000')
+    await window.getByLabel(/Total Price/).fill('3000')
     await window.getByRole('button', { name: 'Save' }).click()
 
     await expect(window.getByText(DEVICE_MODEL_B)).toBeVisible({ timeout: 10_000 })

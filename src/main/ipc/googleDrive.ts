@@ -10,7 +10,7 @@ import {
   loadGoogleDriveSession,
   type ConnectResult
 } from '../services/googleDriveAuth'
-import { uploadBackup, downloadLatestBackup } from '../services/googleDriveApi'
+import { uploadBackup, downloadLatestBackup, getRemoteBackupInfo, type RemoteBackupInfo } from '../services/googleDriveApi'
 import { createCloudBackupStagingFile, restoreFromBackup, type RestoreResult } from '../db/services/backupService'
 import { relaunchAfterRestore } from './backup'
 import { getDatabase } from '../db/client'
@@ -25,6 +25,13 @@ export interface GoogleDriveStatus {
 
 export interface CloudBackupResult {
   success: boolean
+  error?: string
+}
+
+export interface RemoteBackupInfoResult {
+  connected: boolean
+  /** The latest backup in the connected account's Drive, or null if none exists yet. */
+  backup: RemoteBackupInfo | null
   error?: string
 }
 
@@ -81,6 +88,25 @@ export function registerGoogleDriveIpc(): void {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error while uploading to Google Drive' }
     } finally {
       if (fs.existsSync(staging.filePath)) fs.unlinkSync(staging.filePath)
+    }
+  })
+
+  // Fresh-device check (Part F): does the connected account already hold a
+  // backup? Used right after connecting to offer "Restore this backup?".
+  ipcMain.handle('googleDrive:getRemoteBackupInfo', async (): Promise<RemoteBackupInfoResult> => {
+    const tokenResult = await getFreshAccessToken()
+    if ('error' in tokenResult) {
+      if (tokenResult.error === 'revoked') repo().setGoogleDriveState({ revoked: true })
+      return { connected: false, backup: null, error: accessErrorMessage(tokenResult.error, tokenResult.message) }
+    }
+    try {
+      return { connected: true, backup: await getRemoteBackupInfo(tokenResult.accessToken) }
+    } catch (err) {
+      return {
+        connected: true,
+        backup: null,
+        error: err instanceof Error ? err.message : 'Could not check Google Drive for an existing backup'
+      }
     }
   })
 

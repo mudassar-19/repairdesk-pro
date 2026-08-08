@@ -38,11 +38,11 @@ export function CustomerDetailPage() {
     })
   }, [id])
 
-  // Actual money received: the initial advance captured at repair creation
-  // (a repair-table field, not a Payment row) plus every payment recorded
-  // since via the Phase 7 Payments module — not the old repairPrice-minus-
-  // remainingBalance approximation.
-  const totalSpent = repairs.reduce((sum, repair) => sum + repair.advanceAmount, 0) + paymentsTotal
+  // Actual money received = the sum of this customer's Payment rows. Under the
+  // "every rupee is a Payment" model the booking advance is itself an `advance`
+  // Payment (see repairService.createRepair), so it is already inside
+  // paymentsTotal — adding repair.advanceAmount on top would double-count it.
+  const totalSpent = paymentsTotal
   const lastVisit = repairs[0] ? new Date(repairs[0].createdAt).toLocaleDateString() : '—'
 
   const handleDelete = async () => {

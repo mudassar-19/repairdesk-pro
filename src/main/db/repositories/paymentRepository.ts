@@ -11,6 +11,10 @@ export type PaymentWithContext = Payment & {
   customerPhone: string
   deviceBrand: string
   deviceModel: string
+  /** Total non-deleted payments on this payment's repair (for the "N of M" ledger indicator). */
+  repairPaymentCount: number
+  /** This payment's chronological position among its repair's payments, 1-based. */
+  repairPaymentIndex: number
 }
 
 export interface NewPaymentInput {
@@ -112,7 +116,12 @@ export class PaymentRepository extends BaseRepository {
         customerName: customers.name,
         customerPhone: customers.phone,
         deviceBrand: repairs.deviceBrand,
-        deviceModel: repairs.deviceModel
+        deviceModel: repairs.deviceModel,
+        // Correlated subqueries (not window functions) so the count/index cover
+        // ALL of the repair's payments regardless of the active list filters —
+        // "2 of 3" stays truthful even when a date/type filter hides siblings.
+        repairPaymentCount: sql<number>`(select count(*) from payments p2 where p2.repair_id = ${payments.repairId} and p2.is_deleted = 0)`,
+        repairPaymentIndex: sql<number>`(select count(*) from payments p2 where p2.repair_id = ${payments.repairId} and p2.is_deleted = 0 and (p2.payment_date < ${payments.paymentDate} or (p2.payment_date = ${payments.paymentDate} and p2.created_at <= ${payments.createdAt})))`
       })
       .from(payments)
       .innerJoin(repairs, eq(payments.repairId, repairs.id))

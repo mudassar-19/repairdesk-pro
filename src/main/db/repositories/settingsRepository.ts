@@ -50,14 +50,18 @@ const RECEIPT_SETTINGS_KEY = 'receiptSettings'
  *
  * cloudBackupEnabled/scheduledTimes govern the separate scheduled cloud
  * backup feature (replacing the old Firestore sync engine) — scheduledTimes
- * is a list of 24-hour "HH:mm" strings, each one a daily upload time.
+ * is a list of 24-hour "HH:mm" strings, each one a daily upload time. Each
+ * scheduled run replaces the single latest backup in Drive (there is no
+ * accumulating cloud history — see services/googleDriveApi.ts). Default
+ * 1 PM / 6 PM / 8 PM covers a typical shop day (midday, evening close-ish,
+ * and after close); the owner can add/remove/change them freely in Settings.
  */
 const backupSettingsSchema = z.object({
   customLocation: z.string().nullable().default(null),
   frequency: z.enum(['daily', 'weekly']).default('daily'),
   retentionCount: z.union([z.literal(7), z.literal(14), z.literal(30)]).default(14),
   cloudBackupEnabled: z.boolean().default(true),
-  scheduledTimes: z.array(z.string()).default(['18:00', '21:00', '22:00'])
+  scheduledTimes: z.array(z.string()).default(['13:00', '18:00', '20:00'])
 })
 export type BackupSettings = z.infer<typeof backupSettingsSchema>
 

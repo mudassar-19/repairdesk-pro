@@ -8,6 +8,7 @@ import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { paymentTypeLabel } from '@shared/lib/paymentType'
 import { isRepairStatusLocked, repairPriorityLabel } from '@shared/lib/repairStatus'
+import { useDataSubscription } from '@shared/lib/dataBus'
 import { RecordPaymentModal } from './RecordPaymentModal'
 import { ReceiptModal } from './ReceiptModal'
 import type { Repair } from '../../../../main/db/repositories/repairRepository'
@@ -36,6 +37,21 @@ export function RepairDetailPage() {
       setLoading(false)
     })
   }, [id])
+
+  // Delivery now records payments (full-pay or credit split), so refresh the
+  // Payment History alongside the repair whenever its status/balance changes.
+  const handleRepairChanged = (updated: Repair) => {
+    setRepair(updated)
+    window.api.payments.findByRepairId(updated.id).then(setPaymentHistory)
+  }
+
+  // Part E: if this repair's money changes elsewhere (e.g. its linked udhaar
+  // is settled on the Udhaar page), reflect it here live.
+  useDataSubscription(['repairs', 'payments'], () => {
+    if (!id) return
+    window.api.repairs.getById(id).then((r) => r && setRepair(r))
+    window.api.payments.findByRepairId(id).then(setPaymentHistory)
+  })
 
   const handleDelete = async () => {
     if (!repair) return
@@ -129,7 +145,7 @@ export function RepairDetailPage() {
         {!isRepairStatusLocked(repair.status) && (
           <div className="mb-lg rounded-lg border border-border/60 bg-surface p-lg shadow-card">
             <BilingualText text={dictionary.repairs.changeStatus} as="div" size="sm" className="mb-sm text-ink-muted" />
-            <RepairStatusActions repair={repair} onChanged={setRepair} />
+            <RepairStatusActions repair={repair} onChanged={handleRepairChanged} />
           </div>
         )}
 
@@ -192,13 +208,18 @@ export function RepairDetailPage() {
         <div className="mb-lg rounded-lg border border-border/60 bg-surface shadow-card">
           <div className="flex items-center justify-between border-b border-border px-lg py-md">
             <BilingualText text={dictionary.payments.paymentHistory} as="div" size="lg" />
-            <button
-              type="button"
-              onClick={() => setPaymentModalOpen(true)}
-              className="rounded-md bg-primary px-md py-sm text-primary-ink transition-colors hover:bg-primary-hover"
-            >
-              <BilingualText text={dictionary.payments.recordPayment} size="sm" />
-            </button>
+            {/* D3: manual Record Payment is for interim (pre-delivery) paydowns
+                only. Once delivered/cancelled the repair is locked; further
+                money on a credit delivery is collected via Udhaar settlement. */}
+            {!isRepairStatusLocked(repair.status) && (
+              <button
+                type="button"
+                onClick={() => setPaymentModalOpen(true)}
+                className="rounded-md bg-primary px-md py-sm text-primary-ink transition-colors hover:bg-primary-hover"
+              >
+                <BilingualText text={dictionary.payments.recordPayment} size="sm" />
+              </button>
+            )}
           </div>
           {paymentHistory.length === 0 ? (
             <div className="p-lg text-center">

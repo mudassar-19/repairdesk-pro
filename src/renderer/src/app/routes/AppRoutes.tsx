@@ -16,6 +16,7 @@ import { ReportsPage } from '@features/reports/ReportsPage'
 import { AnalyticsPage } from '@features/analytics/AnalyticsPage'
 import { ActivityTimelinePage } from '@features/activity/ActivityTimelinePage'
 import { SettingsPage } from '@features/settings/SettingsPage'
+import { PosPage } from '@features/pos/PosPage'
 import { AuthPage } from '@features/auth/AuthPage'
 import { useAuthBootstrap } from '@features/auth/hooks/useAuthBootstrap'
 import { useAuthStore } from '@shared/hooks/useAuthStore'
@@ -51,6 +52,9 @@ export function AppRoutes() {
         <Route path="/activity" element={<ActivityTimelinePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
+      {/* POS Mode: authenticated, but outside AppLayout — its own full-screen
+          shell with none of the sidebar/browsing surfaces (Part I). */}
+      <Route path="/pos" element={isAuthenticated ? <PosPage /> : <Navigate to="/auth" replace />} />
     </Routes>
   )
 }
