@@ -32,7 +32,7 @@ test.describe.serial('Receipt PDF filename (Part G)', () => {
     const picker = window.locator('form').locator('input[type=text]').first()
     await picker.fill(`Zubair Khan ${SUFFIX}`)
     await window.getByText('Create New Customer', { exact: false }).click()
-    await window.locator('input[type=tel]').first().fill(`0300${SUFFIX}`)
+    await window.locator('input[type=tel]').first().fill(`03000${SUFFIX}`)
     await window.getByRole('button', { name: 'Save' }).first().click()
     await expect(window.getByText(`Zubair Khan ${SUFFIX}`)).toBeVisible({ timeout: 5_000 })
 

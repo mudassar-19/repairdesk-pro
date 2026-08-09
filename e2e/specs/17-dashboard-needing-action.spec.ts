@@ -32,7 +32,7 @@ test.describe.serial('Dashboard — Repairs Needing Action', () => {
         d.setDate(d.getDate() + offset)
         return fmt(d)
       }
-      const customer = await window.api.customers.create({ name: `NA Cust ${suffix}`, phone: `0306${suffix}` })
+      const customer = await window.api.customers.create({ name: `NA Cust ${suffix}`, phone: `03006${suffix}` })
       const base = { customerId: customer.id, deviceBrand: 'ZZ', issue: 'x', costPrice: 0, repairPrice: 1000, advanceAmount: 0 }
       await window.api.repairs.create({ ...base, deviceModel: `SOON-${suffix}`, estimatedDeliveryDate: day(2) })
       await window.api.repairs.create({ ...base, deviceModel: `OVERDUE-${suffix}`, estimatedDeliveryDate: day(-1) })

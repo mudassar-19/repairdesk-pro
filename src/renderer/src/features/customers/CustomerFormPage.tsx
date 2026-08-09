@@ -7,19 +7,16 @@ import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { dictionary } from '@shared/i18n'
 import { useDuplicatePhoneCheck } from '@shared/hooks/useDuplicatePhoneCheck'
-import { normalizePhone } from '@shared/lib/phone'
+import { normalizePhone, isValidMobilePhone, sanitizePhoneInput, PHONE_HELP, hasLetter, NAME_HELP } from '@shared/lib/phone'
 import { logActivity } from '@shared/lib/activityLog'
 import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
+import { MAX_NOTES, MAX_SHORT_TEXT, TOO_LONG } from '@shared/lib/textLimits'
 
 const customerFormSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  phone: z
-    .string()
-    .trim()
-    .min(1, 'Phone is required')
-    .refine((value) => normalizePhone(value).length >= 7, 'Enter a valid phone number'),
-  address: z.string().trim().optional(),
-  notes: z.string().trim().optional()
+  name: z.string().trim().min(1, 'Name is required').max(MAX_SHORT_TEXT, TOO_LONG(MAX_SHORT_TEXT)).refine(hasLetter, NAME_HELP),
+  phone: z.string().trim().min(1, 'Phone is required').refine(isValidMobilePhone, PHONE_HELP),
+  address: z.string().trim().max(MAX_SHORT_TEXT, TOO_LONG(MAX_SHORT_TEXT)).optional(),
+  notes: z.string().trim().max(MAX_NOTES, TOO_LONG(MAX_NOTES)).optional()
 })
 
 type CustomerFormValues = z.infer<typeof customerFormSchema>
@@ -150,13 +147,22 @@ export function CustomerFormPage() {
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.customers.name} size="sm" className="text-ink-muted" />
-          <input type="text" autoFocus className={inputClass} {...register('name')} />
+          <input type="text" autoFocus maxLength={MAX_SHORT_TEXT} className={inputClass} {...register('name')} />
           {errors.name && <span className="text-xs text-danger">{errors.name.message}</span>}
         </label>
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.customers.phone} size="sm" className="text-ink-muted" />
-          <input type="tel" className={inputClass} {...register('phone')} />
+          <input
+            type="tel"
+            inputMode="numeric"
+            className={inputClass}
+            {...register('phone')}
+            onChange={(event) => {
+              event.target.value = sanitizePhoneInput(event.target.value)
+              register('phone').onChange(event)
+            }}
+          />
           {errors.phone && <span className="text-xs text-danger">{errors.phone.message}</span>}
         </label>
 
@@ -188,12 +194,12 @@ export function CustomerFormPage() {
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.customers.address} size="sm" className="text-ink-muted" />
-          <input type="text" className={inputClass} {...register('address')} />
+          <input type="text" maxLength={MAX_SHORT_TEXT} className={inputClass} {...register('address')} />
         </label>
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.customers.notes} size="sm" className="text-ink-muted" />
-          <textarea rows={3} className={inputClass} {...register('notes')} />
+          <textarea rows={3} maxLength={MAX_NOTES} className={inputClass} {...register('notes')} />
         </label>
 
         <div className="mt-sm flex justify-end gap-sm">

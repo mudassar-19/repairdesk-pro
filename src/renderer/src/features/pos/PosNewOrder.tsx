@@ -12,7 +12,7 @@ import { formatCurrency } from '@shared/lib/currency'
 import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
 import { repairPriorityValues, repairPriorityLabel } from '@shared/lib/repairStatus'
 import {
-  repairFormSchema,
+  newRepairFormSchema,
   repairFormDefaults,
   buildRepairPayload,
   toNumber,
@@ -20,8 +20,9 @@ import {
 } from '@features/repairs/repairForm'
 import { ReceiptModal } from '@features/repairs/ReceiptModal'
 import { DeliverOnCreditModal } from '@features/repairs/DeliverOnCreditModal'
-import { commonIssues } from '@shared/lib/commonIssues'
+import { commonIssues, isIssueChipSelected, toggleIssueChip } from '@shared/lib/commonIssues'
 import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
+import { MAX_ISSUE } from '@shared/lib/textLimits'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
 import type { Repair } from '../../../../main/db/repositories/repairRepository'
 import type { DeliverOnCreditResult } from '../../../../main/db/services/deliveryService'
@@ -60,13 +61,16 @@ export function PosNewOrder() {
     reset,
     setValue,
     formState: { errors }
-  } = useForm<RepairFormValues>({ resolver: zodResolver(repairFormSchema), defaultValues: repairFormDefaults })
+  } = useForm<RepairFormValues>({ resolver: zodResolver(newRepairFormSchema), defaultValues: repairFormDefaults })
 
   const totalPrice = toNumber(watch('repairPrice'))
   const advance = toNumber(watch('advanceAmount'))
   const remaining = Math.max(totalPrice - advance, 0)
   const brand = watch('deviceBrand')
   const model = watch('deviceModel')
+  const costPrice = toNumber(watch('costPrice'))
+  const costExceedsPrice = costPrice > 0 && totalPrice > 0 && costPrice > totalPrice
+  const issueValue = watch('issue') ?? ''
 
   const resetAll = () => {
     reset(repairFormDefaults)
@@ -140,10 +144,20 @@ export function PosNewOrder() {
     setSavedMessage(true)
   }
 
+  const selectMode = (value: CompletionMode) => {
+    setMode(value)
+    // The date/priority fields are hidden for take-now orders — clear them so a
+    // stale value (e.g. a date typed before switching) can't linger or block submit.
+    if (value !== 'pending') {
+      setValue('estimatedDeliveryDate', '')
+      setValue('priority', 'normal')
+    }
+  }
+
   const modeOption = (value: CompletionMode, label: BilingualString) => (
     <button
       type="button"
-      onClick={() => setMode(value)}
+      onClick={() => selectMode(value)}
       className={`flex-1 rounded-md border px-sm py-sm text-sm transition-colors ${
         mode === value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-ink-muted hover:bg-surface-raised'
       }`}
@@ -199,20 +213,29 @@ export function PosNewOrder() {
 
               <label className="flex flex-col gap-1">
                 <BilingualText text={dictionary.repairs.issue} size="sm" className="text-ink-muted" />
-                <textarea rows={2} className={inputClass} {...register('issue')} />
+                <textarea rows={2} maxLength={MAX_ISSUE} className={inputClass} {...register('issue')} />
                 {errors.issue && <span className="text-xs text-danger">{errors.issue.message}</span>}
-                {/* J14: bilingual common-issue quick-chips, same as the main form. */}
+                {/* J14: bilingual common-issue quick-chips, MULTI-select — same as
+                    the main form: toggles the chip in/out of the Issue field. */}
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  {commonIssues.map((chip) => (
-                    <button
-                      key={chip.en}
-                      type="button"
-                      onClick={() => setValue('issue', chip.en, { shouldValidate: true })}
-                      className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
-                    >
-                      <BilingualText text={chip} size="xs" align="center" />
-                    </button>
-                  ))}
+                  {commonIssues.map((chip) => {
+                    const selected = isIssueChipSelected(issueValue, chip.en)
+                    return (
+                      <button
+                        key={chip.en}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setValue('issue', toggleIssueChip(issueValue, chip.en), { shouldValidate: true })}
+                        className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-ink-muted hover:border-primary hover:bg-primary/5 hover:text-primary'
+                        }`}
+                      >
+                        <BilingualText text={chip} size="xs" align="center" />
+                      </button>
+                    )
+                  })}
                 </div>
               </label>
 
@@ -228,25 +251,40 @@ export function PosNewOrder() {
                 <label className="flex flex-col gap-1">
                   <BilingualText text={dictionary.repairs.advanceAmount} size="sm" className="text-ink-muted" />
                   <input type="text" inputMode="decimal" className={inputClass} {...register('advanceAmount')} />
+                  {errors.advanceAmount && <span className="text-xs text-danger">{errors.advanceAmount.message}</span>}
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-md">
-                <label className="flex flex-col gap-1">
-                  <BilingualText text={dictionary.repairs.estimatedDeliveryDate} size="sm" className="text-ink-muted" />
-                  <input type="date" className={inputClass} {...register('estimatedDeliveryDate')} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <BilingualText text={dictionary.repairs.priority} size="sm" className="text-ink-muted" />
-                  <select className={inputClass} {...register('priority')}>
-                    {repairPriorityValues.map((value) => (
-                      <option key={value} value={value}>
-                        {repairPriorityLabel[value].en}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              {costExceedsPrice && (
+                <div data-testid="cost-exceeds-price-warning">
+                  <BilingualText text={dictionary.repairs.costExceedsPriceHint} size="xs" className="text-warning" />
+                </div>
+              )}
+
+              {/* Estimated Delivery Date + Priority only make sense for an order
+                  that's staying in the shop for repair. When the customer is
+                  taking the device now (paid or on credit), these are hidden. */}
+              {mode === 'pending' && (
+                <div className="grid grid-cols-2 gap-md">
+                  <label className="flex flex-col gap-1">
+                    <BilingualText text={dictionary.repairs.estimatedDeliveryDate} size="sm" className="text-ink-muted" />
+                    <input type="date" className={inputClass} {...register('estimatedDeliveryDate')} />
+                    {errors.estimatedDeliveryDate && (
+                      <span className="text-xs text-danger">{errors.estimatedDeliveryDate.message}</span>
+                    )}
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <BilingualText text={dictionary.repairs.priority} size="sm" className="text-ink-muted" />
+                    <select className={inputClass} {...register('priority')}>
+                      {repairPriorityValues.map((value) => (
+                        <option key={value} value={value}>
+                          {repairPriorityLabel[value].en}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
             </div>
           </Card>
         </div>

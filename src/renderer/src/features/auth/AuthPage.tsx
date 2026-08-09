@@ -9,6 +9,7 @@ import { dictionary } from '@shared/i18n'
 import { useAuthStore } from '@shared/hooks/useAuthStore'
 import { Button } from '@shared/components/Button'
 import { describeAuthError } from './lib/authErrors'
+import { verifyDevice } from './lib/deviceLock'
 import repairdeskLogo from '../../assets/images/repairdesk-logo.png'
 
 const loginSchema = z.object({
@@ -52,26 +53,44 @@ export function AuthPage() {
     try {
       const credential = await signInWithEmailAndPassword(firebaseAuth, email, password)
       const deviceId = await window.api.auth.getDeviceId()
+      const uid = credential.user.uid
+      const userEmail = credential.user.email ?? email
+
+      // Device-lock (Part H, Firestore-backed): the authoritative check. On the
+      // first login this binds device_locks/{deviceId} to this account; on every
+      // later login it verifies against Firestore (falling back to the local
+      // offline cache only for an already-verified device). Deleting the local
+      // device-owner.json file cannot bypass this — online, Firestore still
+      // rejects a mismatched account; offline with no cache, it fails closed.
+      const verdict = await verifyDevice({ uid, email: userEmail, deviceId })
+      if (verdict.status !== 'allowed') {
+        await signOut(firebaseAuth).catch(() => {})
+        if (mountedRef.current) {
+          setFormError(
+            verdict.status === 'locked'
+              ? `This device is registered to a different account${verdict.ownerEmail ? ` (${verdict.ownerEmail})` : ''}. Please use that account, or contact your administrator to re-register this device.`
+              : verdict.code === 'offline-first-login'
+                ? 'This device needs an internet connection the first time you sign in, so it can be registered to your account. Please connect and try again.'
+                : 'Could not verify this device right now. Please check your internet connection and try again.'
+          )
+        }
+        return
+      }
 
       const result = await window.api.auth.saveLocalSession({
-        uid: credential.user.uid,
-        email: credential.user.email ?? email,
+        uid,
+        email: userEmail,
         deviceId,
         refreshToken: credential.user.refreshToken,
         issuedAt: new Date().toISOString()
       })
 
-      // Device-lock (Part H): the credentials were valid but this install is
-      // bound to a different account — refuse access and don't keep a Firebase
-      // session hanging around on a device this user isn't allowed to use.
+      // The only remaining local refusal: OS-level encryption unavailable, so a
+      // session can't be persisted securely. Don't leave a Firebase session open.
       if (!result.ok) {
         await signOut(firebaseAuth).catch(() => {})
         if (mountedRef.current) {
-          setFormError(
-            result.reason === 'device-locked'
-              ? `This device is registered to a different account${result.ownerEmail ? ` (${result.ownerEmail})` : ''}. Please use that account, or contact your administrator to re-register this device.`
-              : 'OS-level encryption is not available on this device, so a session cannot be saved securely.'
-          )
+          setFormError('OS-level encryption is not available on this device, so a session cannot be saved securely.')
         }
         return
       }
@@ -80,13 +99,13 @@ export function AuthPage() {
       // disk — flip state right here so the Dashboard redirect fires
       // immediately. Activity logging is an auxiliary side effect (local log
       // entry only); it isn't awaited in the critical path.
-      if (mountedRef.current) setAuthenticated({ uid: credential.user.uid, email: credential.user.email ?? email }, deviceId)
+      if (mountedRef.current) setAuthenticated({ uid, email: userEmail }, deviceId)
 
       window.api
         .logActivity({
           actionType: 'login',
           entityType: 'auth',
-          entityId: credential.user.uid,
+          entityId: uid,
           description: `Signed in on device ${deviceId}`,
           metadata: { deviceId }
         })

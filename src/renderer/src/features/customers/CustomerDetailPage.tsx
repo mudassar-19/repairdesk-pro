@@ -21,6 +21,7 @@ export function CustomerDetailPage() {
   const [paymentsTotal, setPaymentsTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -47,16 +48,26 @@ export function CustomerDetailPage() {
 
   const handleDelete = async () => {
     if (!customer) return
-    const deleted = await window.api.customers.softDelete(customer.id)
     setConfirmOpen(false)
-    if (deleted) {
-      logActivity({
-        actionType: 'delete',
-        entityType: 'customer',
-        entityId: deleted.id,
-        description: `Customer "${deleted.name}" deleted`
-      })
-      navigate('/customers', { replace: true })
+    setDeleteError(null)
+    try {
+      const deleted = await window.api.customers.softDelete(customer.id)
+      if (deleted) {
+        logActivity({
+          actionType: 'delete',
+          entityType: 'customer',
+          entityId: deleted.id,
+          description: `Customer "${deleted.name}" deleted`
+        })
+        navigate('/customers', { replace: true })
+      }
+    } catch (error) {
+      // The backend blocks deleting a customer with active repairs — surface why.
+      setDeleteError(
+        error instanceof Error && /active repair/i.test(error.message)
+          ? 'This customer has active repairs. Deliver or cancel them before deleting the customer.'
+          : 'Could not delete this customer. Please try again.'
+      )
     }
   }
 
@@ -95,6 +106,12 @@ export function CustomerDetailPage() {
           </Button>
         </div>
       </div>
+
+      {deleteError && (
+        <p role="alert" data-testid="customer-delete-error" className="mb-lg rounded-md bg-danger/10 px-sm py-sm text-sm text-danger">
+          {deleteError}
+        </p>
+      )}
 
       <div className="mb-xl grid grid-cols-3 gap-lg">
         <SummaryCard label={dictionary.customers.totalRepairs} value={String(repairs.length)} />

@@ -1,6 +1,7 @@
 import type { AppDatabase } from '../client'
 import { PaymentRepository, type NewPaymentInput, type Payment } from '../repositories/paymentRepository'
 import { RepairRepository, type Repair } from '../repositories/repairRepository'
+import { assertPositiveAmount, assertNotFutureDate } from '../../lib/validation'
 
 export interface RecordPaymentResult {
   payment: Payment
@@ -24,6 +25,11 @@ export interface RecordPaymentResult {
  * just-inserted payment into the balance — no duplicated math.
  */
 export function recordPayment(db: AppDatabase, input: NewPaymentInput): RecordPaymentResult {
+  // Backend guards: a payment must move a positive amount and can't be dated in
+  // the future (which would misattribute revenue to a day that hasn't happened).
+  assertPositiveAmount(input.amount, 'Payment amount')
+  assertNotFutureDate(input.paymentDate, 'Payment date')
+
   return db.transaction((tx) => {
     const paymentRepo = new PaymentRepository(tx)
     const repairRepo = new RepairRepository(tx)

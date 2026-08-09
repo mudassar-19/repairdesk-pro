@@ -7,6 +7,7 @@ import {
   type NewExpenseInput,
   type UpdateExpenseInput
 } from '../db/repositories/expenseRepository'
+import { assertPositiveAmount, assertNonEmpty, assertNotFutureDate } from '../lib/validation'
 
 export function registerExpensesIpc(): void {
   const repo = () => new ExpenseRepository(getDatabase())
@@ -31,7 +32,14 @@ export function registerExpensesIpc(): void {
     (): { category: string; amount: number }[] => repo().findRecurringDrafts()
   )
 
-  ipcMain.handle('expenses:create', (_event, input: NewExpenseInput): Expense => repo().create(input))
+  ipcMain.handle('expenses:create', (_event, input: NewExpenseInput): Expense => {
+    // Backend guards: a non-empty category, a positive amount, and a date that
+    // isn't in the future (an expense is money already spent).
+    assertNonEmpty(input.category, 'Category')
+    assertPositiveAmount(input.amount, 'Expense amount')
+    assertNotFutureDate(input.expenseDate, 'Expense date')
+    return repo().create(input)
+  })
 
   ipcMain.handle(
     'expenses:update',

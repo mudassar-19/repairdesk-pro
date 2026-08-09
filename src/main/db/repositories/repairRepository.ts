@@ -90,7 +90,9 @@ export class RepairRepository extends BaseRepository {
   findAll(filters: RepairFilters = {}): Repair[] {
     const conditions = this.buildConditions(filters)
     const query = this.db.select().from(repairs)
-    return conditions.length ? query.where(and(...conditions)).all() : query.all()
+    const filtered = conditions.length ? query.where(and(...conditions)) : query
+    // Default newest-first for the Repairs list.
+    return filtered.orderBy(desc(repairs.createdAt)).all()
   }
 
   /**
@@ -120,7 +122,9 @@ export class RepairRepository extends BaseRepository {
       .from(repairs)
       .innerJoin(customers, eq(repairs.customerId, customers.id))
 
-    return conditions.length ? query.where(and(...conditions)).all() : query.all()
+    const filtered = conditions.length ? query.where(and(...conditions)) : query
+    // Default newest-first for the Repairs list.
+    return filtered.orderBy(desc(repairs.createdAt)).all()
   }
 
   /**
@@ -349,6 +353,26 @@ export class RepairRepository extends BaseRepository {
       .groupBy(repairs.status)
       .all()
     return Object.fromEntries(rows.map((row) => [row.status, row.total]))
+  }
+
+  /**
+   * How many NOT-yet-finished repairs a customer has (anything not delivered or
+   * cancelled, excluding soft-deleted). Used to block archiving a customer who
+   * still has work in progress — see the customers:softDelete guard.
+   */
+  countActiveByCustomer(customerId: string): number {
+    const row = this.db
+      .select({ total: count() })
+      .from(repairs)
+      .where(
+        and(
+          eq(repairs.customerId, customerId),
+          eq(repairs.isDeleted, false),
+          notInArray(repairs.status, ['delivered', 'cancelled'])
+        )
+      )
+      .get()
+    return row?.total ?? 0
   }
 
   /** Populates the Repair List's brand filter dropdown from what's actually in use. */

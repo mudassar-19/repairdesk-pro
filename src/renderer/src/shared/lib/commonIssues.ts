@@ -14,3 +14,35 @@ export const commonIssues: BilingualString[] = [
   { en: 'Software Issue', ur: 'سافٹ ویئر مسئلہ' },
   { en: 'Speaker / Mic', ur: 'اسپیکر / مائیک' }
 ]
+
+/**
+ * The Issue field is treated as a comma-separated list of items so the chips
+ * can behave as a MULTI-select: a single device can need several repairs at
+ * once (screen AND battery). Chip selection state is derived from the field's
+ * own text (not a separate store), so manually typing/deleting an item keeps
+ * the chips in sync, and any extra custom text the user adds is preserved as
+ * its own item. Comparison is case-insensitive/trimmed; chip labels never
+ * contain commas, so splitting on "," is safe.
+ */
+function issueItems(issue: string): string[] {
+  return issue
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+/** True when `chip` is already one of the items in the Issue field. */
+export function isIssueChipSelected(issue: string, chip: string): boolean {
+  const target = chip.trim().toLowerCase()
+  return issueItems(issue).some((item) => item.toLowerCase() === target)
+}
+
+/** Toggle `chip` in the Issue field: remove it if present, otherwise append it. */
+export function toggleIssueChip(issue: string, chip: string): string {
+  const items = issueItems(issue)
+  const target = chip.trim().toLowerCase()
+  const index = items.findIndex((item) => item.toLowerCase() === target)
+  if (index >= 0) items.splice(index, 1)
+  else items.push(chip.trim())
+  return items.join(', ')
+}

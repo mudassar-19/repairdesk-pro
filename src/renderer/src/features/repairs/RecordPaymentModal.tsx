@@ -8,6 +8,8 @@ import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { paymentTypeValues, paymentTypeLabel } from '@shared/lib/paymentType'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
+import { todayLocalDate } from '@shared/lib/phone'
+import { MAX_NOTES, TOO_LONG } from '@shared/lib/textLimits'
 import type { Repair } from '../../../../main/db/repositories/repairRepository'
 import type { NewPaymentInput } from '../../../../main/db/repositories/paymentRepository'
 import type { RecordPaymentResult } from '../../../../main/db/services/paymentService'
@@ -19,8 +21,13 @@ const paymentFormSchema = z.object({
     .min(1, 'Amount is required')
     .refine((value) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0, 'Enter a valid amount'),
   type: z.enum(paymentTypeValues),
-  paymentDate: z.string().trim().min(1, 'Payment date is required'),
-  notes: z.string().trim().optional()
+  // A payment is money received; it can't be dated in the future.
+  paymentDate: z
+    .string()
+    .trim()
+    .min(1, 'Payment date is required')
+    .refine((value) => value <= todayLocalDate(), 'Payment date cannot be in the future'),
+  notes: z.string().trim().max(MAX_NOTES, TOO_LONG(MAX_NOTES)).optional()
 })
 
 type PaymentFormValues = z.infer<typeof paymentFormSchema>
@@ -206,7 +213,7 @@ export function RecordPaymentModal({
 
             <label className="flex flex-col gap-1">
               <BilingualText text={dictionary.payments.notes} size="sm" className="text-ink-muted" />
-              <textarea rows={2} className={inputClass} {...register('notes')} />
+              <textarea rows={2} maxLength={MAX_NOTES} className={inputClass} {...register('notes')} />
             </label>
 
             <div className="mt-sm flex justify-end gap-sm">

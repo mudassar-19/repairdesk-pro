@@ -8,9 +8,18 @@ import { CustomerPicker } from '@shared/components/CustomerPicker'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { repairPriorityValues, repairPriorityLabel } from '@shared/lib/repairStatus'
-import { repairFormSchema, repairFormDefaults, toNumber, buildRepairPayload, type RepairFormValues } from './repairForm'
-import { commonIssues } from '@shared/lib/commonIssues'
+import {
+  repairFormSchema,
+  newRepairFormSchema,
+  repairFormDefaults,
+  toNumber,
+  buildRepairPayload,
+  type RepairFormValues
+} from './repairForm'
+import { commonIssues, isIssueChipSelected, toggleIssueChip } from '@shared/lib/commonIssues'
 import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
+import { sanitizeImeiInput } from '@shared/lib/phone'
+import { MAX_NOTES, MAX_ISSUE, MAX_SHORT_TEXT } from '@shared/lib/textLimits'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
 
 const inputClass =
@@ -35,7 +44,10 @@ export function RepairFormPage() {
     setValue,
     formState: { errors, isSubmitting }
   } = useForm<RepairFormValues>({
-    resolver: zodResolver(repairFormSchema),
+    // The advance-exceeds-price and past-delivery-date guards apply to NEW
+    // orders only — editing an existing repair keeps the base schema so those
+    // rules can't retroactively block a legitimate save.
+    resolver: zodResolver(isEdit ? repairFormSchema : newRepairFormSchema),
     defaultValues: repairFormDefaults
   })
 
@@ -71,7 +83,13 @@ export function RepairFormPage() {
   const advanceAmount = toNumber(watch('advanceAmount'))
   const remainingBalance = repairPrice - advanceAmount
   const costPriceValue = watch('costPrice')
+  const costPrice = toNumber(costPriceValue)
+  const issueValue = watch('issue') ?? ''
   const showCostHint = !costPriceValue || Number(costPriceValue) === 0
+  // Soft, non-blocking warning: cost above price means a loss on this repair —
+  // sometimes intentional, so it's flagged (like the "not entered" note), never
+  // hard-blocked.
+  const costExceedsPrice = costPrice > 0 && repairPrice > 0 && costPrice > repairPrice
 
   const onSubmit = handleSubmit(async (values) => {
     if (!selectedCustomer) {
@@ -189,31 +207,51 @@ export function RepairFormPage() {
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.repairs.issue} size="sm" className="text-ink-muted" />
-          <textarea rows={2} className={inputClass} {...register('issue')} />
+          <textarea rows={2} maxLength={MAX_ISSUE} className={inputClass} {...register('issue')} />
           {errors.issue && <span className="text-xs text-danger">{errors.issue.message}</span>}
-          {/* J14: quick-select common issues (bilingual). Tapping fills the field; still fully editable. */}
+          {/* J14: quick-select common issues (bilingual), MULTI-select — a device
+              can need several repairs at once. Tapping toggles the chip in/out of
+              the comma-separated Issue field; the field stays freely editable. */}
           <div className="mt-1 flex flex-wrap gap-1.5">
-            {commonIssues.map((chip) => (
-              <button
-                key={chip.en}
-                type="button"
-                onClick={() => setValue('issue', chip.en, { shouldValidate: true })}
-                className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
-              >
-                <BilingualText text={chip} size="xs" align="center" />
-              </button>
-            ))}
+            {commonIssues.map((chip) => {
+              const selected = isIssueChipSelected(issueValue, chip.en)
+              return (
+                <button
+                  key={chip.en}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setValue('issue', toggleIssueChip(issueValue, chip.en), { shouldValidate: true })}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                    selected
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-ink-muted hover:border-primary hover:bg-primary/5 hover:text-primary'
+                  }`}
+                >
+                  <BilingualText text={chip} size="xs" align="center" />
+                </button>
+              )
+            })}
           </div>
         </label>
 
         <div className="grid grid-cols-2 gap-md">
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.accessories} size="sm" className="text-ink-muted" />
-            <input type="text" className={inputClass} {...register('accessories')} />
+            <input type="text" maxLength={MAX_SHORT_TEXT} className={inputClass} {...register('accessories')} />
           </label>
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.imei} size="sm" className="text-ink-muted" />
-            <input type="text" className={inputClass} {...register('imei')} />
+            <input
+              type="text"
+              inputMode="numeric"
+              className={inputClass}
+              {...register('imei')}
+              onChange={(event) => {
+                event.target.value = sanitizeImeiInput(event.target.value)
+                register('imei').onChange(event)
+              }}
+            />
+            {errors.imei && <span className="text-xs text-danger">{errors.imei.message}</span>}
           </label>
         </div>
 
@@ -221,6 +259,9 @@ export function RepairFormPage() {
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.estimatedDeliveryDate} size="sm" className="text-ink-muted" />
             <input type="date" className={inputClass} {...register('estimatedDeliveryDate')} />
+            {errors.estimatedDeliveryDate && (
+              <span className="text-xs text-danger">{errors.estimatedDeliveryDate.message}</span>
+            )}
           </label>
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.deliveryTime} size="sm" className="text-ink-muted" />
@@ -244,10 +285,15 @@ export function RepairFormPage() {
             <input type="text" inputMode="decimal" className={inputClass} {...register('costPrice')} />
             {errors.costPrice && <span className="text-xs text-danger">{errors.costPrice.message}</span>}
           </label>
-          {/* J17: gentle, non-blocking reminder — never a hard validation error. */}
+          {/* J17: gentle, non-blocking reminders — never a hard validation error. */}
           {showCostHint && (
             <div className="col-span-4">
               <BilingualText text={dictionary.repairs.costPriceHint} size="xs" className="text-warning" />
+            </div>
+          )}
+          {costExceedsPrice && (
+            <div className="col-span-4" data-testid="cost-exceeds-price-warning">
+              <BilingualText text={dictionary.repairs.costExceedsPriceHint} size="xs" className="text-warning" />
             </div>
           )}
           <label className="flex flex-col gap-1">
@@ -280,7 +326,7 @@ export function RepairFormPage() {
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.repairs.notes} size="sm" className="text-ink-muted" />
-          <textarea rows={2} className={inputClass} {...register('notes')} />
+          <textarea rows={2} maxLength={MAX_NOTES} className={inputClass} {...register('notes')} />
         </label>
 
         <div className="mt-sm flex justify-end gap-sm">

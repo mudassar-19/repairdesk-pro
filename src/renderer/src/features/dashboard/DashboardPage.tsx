@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
@@ -64,6 +64,11 @@ export function DashboardPage() {
   // card/list live — no navigation or refocus needed.
   useDataSubscription(['repairs', 'payments', 'udhaar', 'expenses', 'customers'], loadAll)
 
+  // Tracks the local calendar day of the last load, so a midnight rollover can
+  // re-fetch the "Today" cards even if the app is left open and focused with no
+  // data changes (the event bus only fires on writes, not on time passing).
+  const loadedDayRef = useRef(new Date().toDateString())
+
   useEffect(() => {
     loadAll()
     // Belt-and-braces for the one thing the in-app event bus can't see:
@@ -74,9 +79,22 @@ export function DashboardPage() {
     }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
+
+    // Day-rollover watch: once a minute, if the local date has changed since the
+    // last load, refresh so "Today's" Revenue/Profit/Repairs reset to the new
+    // day without needing a restart, a click, or a refocus.
+    const dayTimer = setInterval(() => {
+      const today = new Date().toDateString()
+      if (today !== loadedDayRef.current) {
+        loadedDayRef.current = today
+        loadAll()
+      }
+    }, 60_000)
+
     return () => {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
+      clearInterval(dayTimer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

@@ -49,34 +49,52 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
   const textSize = compact ? 'xs' : 'sm'
   const buttonSize = compact ? 'sm' : 'md'
   const [creditModalOpen, setCreditModalOpen] = useState(false)
+  // Prevents a rapid double-click from firing a redundant status/delivery IPC
+  // call and logging a duplicate (and stale-worded) activity entry. The backend
+  // is already idempotent for the money (serialized writes + status lock), but
+  // this keeps the activity log and UI honest. The `busy` ref-like guard also
+  // covers clicks fired before React re-renders with the new disabled state.
+  const [busy, setBusy] = useState(false)
 
-  const changeStatus = (newStatus: RepairStatus) => async () => {
-    const previousStatus = repair.status
-    const updated = await window.api.repairs.update(repair.id, { status: newStatus })
-    if (updated) {
-      onChanged(updated)
-      logActivity({
-        actionType: 'status_change',
-        entityType: 'repair',
-        entityId: updated.id,
-        description: `Status changed from ${repairStatusLabel[previousStatus].en} to ${repairStatusLabel[newStatus].en}`,
-        metadata: { fromStatus: previousStatus, toStatus: newStatus }
-      })
+  const runGuarded = async (fn: () => Promise<void>): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await fn()
+    } finally {
+      setBusy(false)
     }
   }
 
-  const handleMarkDelivered = async () => {
-    const previousStatus = repair.status
-    const result = await window.api.repairs.deliverWithFullPayment(repair.id)
-    onChanged(result.repair)
-    logActivity({
-      actionType: 'status_change',
-      entityType: 'repair',
-      entityId: result.repair.id,
-      description: `Status changed from ${repairStatusLabel[previousStatus].en} to ${repairStatusLabel.delivered.en}${result.payment ? ` — paid in full (${result.payment.amount.toFixed(2)})` : ''}`,
-      metadata: { fromStatus: previousStatus, toStatus: 'delivered', paymentId: result.payment?.id ?? null }
+  const changeStatus = (newStatus: RepairStatus) => () =>
+    runGuarded(async () => {
+      const previousStatus = repair.status
+      const updated = await window.api.repairs.update(repair.id, { status: newStatus })
+      if (updated) {
+        onChanged(updated)
+        logActivity({
+          actionType: 'status_change',
+          entityType: 'repair',
+          entityId: updated.id,
+          description: `Status changed from ${repairStatusLabel[previousStatus].en} to ${repairStatusLabel[newStatus].en}`,
+          metadata: { fromStatus: previousStatus, toStatus: newStatus }
+        })
+      }
     })
-  }
+
+  const handleMarkDelivered = () =>
+    runGuarded(async () => {
+      const previousStatus = repair.status
+      const result = await window.api.repairs.deliverWithFullPayment(repair.id)
+      onChanged(result.repair)
+      logActivity({
+        actionType: 'status_change',
+        entityType: 'repair',
+        entityId: result.repair.id,
+        description: `Status changed from ${repairStatusLabel[previousStatus].en} to ${repairStatusLabel.delivered.en}${result.payment ? ` — paid in full (${result.payment.amount.toFixed(2)})` : ''}`,
+        metadata: { fromStatus: previousStatus, toStatus: 'delivered', paymentId: result.payment?.id ?? null }
+      })
+    })
 
   const handleCreditDelivered = (result: DeliverOnCreditResult) => {
     setCreditModalOpen(false)
@@ -116,7 +134,7 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
   if (repair.status === 'pending') {
     return (
       <div className="flex items-center gap-xs">
-        <Button variant="primary" size={buttonSize} onClick={handleClick(changeStatus('completed'))}>
+        <Button variant="primary" size={buttonSize} disabled={busy} onClick={handleClick(changeStatus('completed'))}>
           <BilingualText text={dictionary.repairs.markCompleted} size={textSize} align="center" />
         </Button>
         <ActionMenu items={[cancelItem]} stopRowClick={stopRowClick} />
@@ -138,7 +156,7 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
 
   return (
     <div className="flex items-center gap-xs">
-      <Button variant="primary" size={buttonSize} onClick={handleMarkDeliveredClick}>
+      <Button variant="primary" size={buttonSize} disabled={busy} onClick={handleMarkDeliveredClick}>
         <BilingualText text={dictionary.repairs.markDelivered} size={textSize} align="center" />
       </Button>
       {compact ? (
@@ -149,11 +167,11 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
       ) : (
         <>
           {creditItem && (
-            <Button variant="secondary" size={buttonSize} onClick={handleCreditClick}>
+            <Button variant="secondary" size={buttonSize} disabled={busy} onClick={handleCreditClick}>
               <BilingualText text={dictionary.repairs.deliverOnCredit} size={textSize} align="center" />
             </Button>
           )}
-          <Button variant="secondary" size={buttonSize} onClick={handleClick(changeStatus('pending'))}>
+          <Button variant="secondary" size={buttonSize} disabled={busy} onClick={handleClick(changeStatus('pending'))}>
             <BilingualText text={dictionary.repairs.revertToPending} size={textSize} align="center" />
           </Button>
           <ActionMenu items={[cancelItem]} stopRowClick={stopRowClick} />

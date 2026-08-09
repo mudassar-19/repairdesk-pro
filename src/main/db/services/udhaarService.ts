@@ -3,6 +3,7 @@ import { UdhaarRepository } from '../repositories/udhaarRepository'
 import { UdhaarSettlementRepository, type UdhaarSettlement } from '../repositories/udhaarSettlementRepository'
 import { PaymentRepository, type Payment } from '../repositories/paymentRepository'
 import { RepairRepository, type Repair } from '../repositories/repairRepository'
+import { assertPositiveAmount, assertNotFutureDate } from '../../lib/validation'
 import type { Udhaar } from '../repositories/udhaarRepository'
 
 export interface RecordSettlementInput {
@@ -51,6 +52,11 @@ export function linkedPaymentNote(settlementId: string): string {
  * never touch the repairs/payments tables.
  */
 export function recordUdhaarSettlement(db: AppDatabase, input: RecordSettlementInput): RecordSettlementResult {
+  // Backend guards: a settlement must move a positive amount and can't be dated
+  // in the future (its date also becomes the mirror repair payment's date).
+  assertPositiveAmount(input.amount, 'Settlement amount')
+  assertNotFutureDate(input.settlementDate, 'Settlement date')
+
   return db.transaction((tx) => {
     const udhaarRepo = new UdhaarRepository(tx)
     const settlementRepo = new UdhaarSettlementRepository(tx)

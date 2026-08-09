@@ -8,6 +8,8 @@ import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { formatCurrency } from '@shared/lib/currency'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
+import { todayLocalDate } from '@shared/lib/phone'
+import { MAX_NOTES, TOO_LONG } from '@shared/lib/textLimits'
 import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
 import type { Udhaar } from '../../../../main/db/repositories/udhaarRepository'
 import type { NewUdhaarSettlementInput } from '../../../../main/db/repositories/udhaarSettlementRepository'
@@ -18,8 +20,13 @@ const settlementFormSchema = z.object({
     .trim()
     .min(1, 'Amount is required')
     .refine((value) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0, 'Enter a valid amount'),
-  settlementDate: z.string().trim().min(1, 'Settlement date is required'),
-  notes: z.string().trim().optional()
+  // A settlement is money received; it can't be dated in the future.
+  settlementDate: z
+    .string()
+    .trim()
+    .min(1, 'Settlement date is required')
+    .refine((value) => value <= todayLocalDate(), 'Settlement date cannot be in the future'),
+  notes: z.string().trim().max(MAX_NOTES, TOO_LONG(MAX_NOTES)).optional()
 })
 
 type SettlementFormValues = z.infer<typeof settlementFormSchema>
@@ -193,8 +200,14 @@ export function RecordSettlementModal({ entry, open, onClose, onRecorded }: Reco
 
             <label className="flex flex-col gap-1">
               <BilingualText text={dictionary.udhaar.notes} size="sm" className="text-ink-muted" />
-              <textarea rows={2} className={inputClass} {...register('notes')} />
+              <textarea rows={2} maxLength={MAX_NOTES} className={inputClass} {...register('notes')} />
             </label>
+
+            <BilingualText
+              text={dictionary.udhaar.settlementFinalNote}
+              size="xs"
+              className="items-start text-ink-muted"
+            />
 
             <div className="mt-sm flex justify-end gap-sm">
               <Button type="button" variant="ghost" onClick={handleClose}>

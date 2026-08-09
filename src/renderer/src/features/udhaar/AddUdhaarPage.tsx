@@ -8,19 +8,26 @@ import { Button } from '@shared/components/Button'
 import { CustomerPicker } from '@shared/components/CustomerPicker'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
+import { isValidMobilePhone, sanitizePhoneInput, PHONE_HELP } from '@shared/lib/phone'
+import { MAX_NOTES, MAX_SHORT_TEXT, TOO_LONG } from '@shared/lib/textLimits'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
 import type { UdhaarDirection } from '../../../../main/db/schema'
 
 const udhaarFormSchema = z.object({
-  personName: z.string().trim().optional(),
-  personPhone: z.string().trim().optional(),
+  personName: z.string().trim().max(MAX_SHORT_TEXT, TOO_LONG(MAX_SHORT_TEXT)).optional(),
+  // Optional, but if a phone is typed for a "Someone Else" entry it must be valid.
+  personPhone: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || isValidMobilePhone(value), PHONE_HELP),
   amount: z
     .string()
     .trim()
     .min(1, 'Amount is required')
     .refine((value) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0, 'Enter a valid amount'),
   dueDate: z.string().trim().optional(),
-  notes: z.string().trim().optional()
+  notes: z.string().trim().max(MAX_NOTES, TOO_LONG(MAX_NOTES)).optional()
 })
 
 type UdhaarFormValues = z.infer<typeof udhaarFormSchema>
@@ -151,11 +158,21 @@ export function AddUdhaarPage() {
             <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
               <label className="flex flex-col gap-1">
                 <BilingualText text={dictionary.udhaar.personName} size="sm" className="text-ink-muted" />
-                <input type="text" className={inputClass} {...register('personName')} />
+                <input type="text" maxLength={MAX_SHORT_TEXT} className={inputClass} {...register('personName')} />
               </label>
               <label className="flex flex-col gap-1">
                 <BilingualText text={dictionary.udhaar.personPhone} size="sm" className="text-ink-muted" />
-                <input type="tel" className={inputClass} {...register('personPhone')} />
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  className={inputClass}
+                  {...register('personPhone')}
+                  onChange={(event) => {
+                    event.target.value = sanitizePhoneInput(event.target.value)
+                    register('personPhone').onChange(event)
+                  }}
+                />
+                {errors.personPhone && <span className="text-xs text-danger">{errors.personPhone.message}</span>}
               </label>
             </div>
           )}
@@ -177,7 +194,7 @@ export function AddUdhaarPage() {
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.udhaar.notes} size="sm" className="text-ink-muted" />
-          <textarea rows={2} className={inputClass} {...register('notes')} />
+          <textarea rows={2} maxLength={MAX_NOTES} className={inputClass} {...register('notes')} />
         </label>
 
         <div className="mt-sm flex justify-end gap-sm">

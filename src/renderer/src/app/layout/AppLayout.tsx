@@ -13,9 +13,13 @@ export function AppLayout() {
   useCloudBackupScheduler(true)
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    // app-shell marks the two full-height, overflow-hidden containers so the
+    // print stylesheet can lift their clipping (otherwise a report taller than
+    // one screen is cut off in the PDF even though `main` itself is unclipped —
+    // its ancestors still constrain it to 100vh). See @media print in theme.css.
+    <div className="app-shell flex h-screen w-screen overflow-hidden">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="app-shell flex flex-1 flex-col overflow-hidden">
         <TopBar />
         <main className="flex flex-1 flex-col overflow-y-auto bg-bg p-xl">
           <Outlet />

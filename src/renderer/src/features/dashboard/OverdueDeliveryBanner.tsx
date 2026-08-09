@@ -169,6 +169,7 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
                 initialDate={addDays(today(), 1)}
                 dateLabel={dictionary.dashboard.newDeliveryDate}
                 confirmLabel={dictionary.dashboard.updateDate}
+                minDate={repair.estimatedDeliveryDate}
                 onConfirm={(newDate) => handleApplyExtension(repair, newDate)}
               />
             )}

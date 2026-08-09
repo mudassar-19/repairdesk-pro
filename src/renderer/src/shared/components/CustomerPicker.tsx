@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
 import { useCustomerSearch } from '@shared/hooks/useCustomerSearch'
 import { useDuplicatePhoneCheck } from '@shared/hooks/useDuplicatePhoneCheck'
-import { normalizePhone } from '@shared/lib/phone'
+import { normalizePhone, isValidMobilePhone, sanitizePhoneInput, PHONE_HELP, hasLetter, NAME_HELP } from '@shared/lib/phone'
 import { logActivity } from '@shared/lib/activityLog'
 import { dictionary } from '@shared/i18n'
 import { BilingualText } from './BilingualText'
@@ -56,7 +56,7 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
   const startCreate = () => {
     setMode('create')
     setCreateName(isDigits(query) ? '' : query)
-    setCreatePhone(isDigits(query) ? query : '')
+    setCreatePhone(isDigits(query) ? sanitizePhoneInput(query) : '')
     setCreateError(null)
   }
 
@@ -64,8 +64,12 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
     if (duplicate) return
     const name = createName.trim()
     const phone = normalizePhone(createPhone)
-    if (!name || phone.length < 7) {
-      setCreateError('Enter a name and a valid phone number.')
+    if (!name || !hasLetter(name)) {
+      setCreateError(NAME_HELP)
+      return
+    }
+    if (!isValidMobilePhone(phone)) {
+      setCreateError(PHONE_HELP)
       return
     }
 
@@ -171,8 +175,9 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
             <BilingualText text={dictionary.customers.phone} size="sm" className="text-ink-muted" />
             <input
               type="tel"
+              inputMode="numeric"
               value={createPhone}
-              onChange={(event) => setCreatePhone(event.target.value)}
+              onChange={(event) => setCreatePhone(sanitizePhoneInput(event.target.value))}
               className="rounded-md border border-border px-sm py-sm text-sm text-ink outline-none focus:border-primary"
             />
           </label>

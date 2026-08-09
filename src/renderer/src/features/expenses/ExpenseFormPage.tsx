@@ -9,7 +9,9 @@ import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { expenseCategoryValues, expenseCategoryLabel, type ExpenseCategory } from '@shared/lib/expenseCategory'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
+import { todayLocalDate } from '@shared/lib/phone'
 import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
+import { MAX_NOTES, MAX_SHORT_TEXT, TOO_LONG } from '@shared/lib/textLimits'
 
 const CUSTOM_SENTINEL = '__custom__'
 
@@ -22,14 +24,19 @@ const categoryOptionLabel = (value: ExpenseCategory): string =>
 const expenseFormSchema = z
   .object({
     category: z.string().min(1, 'Category is required'),
-    customCategory: z.string().trim().optional(),
+    customCategory: z.string().trim().max(MAX_SHORT_TEXT, TOO_LONG(MAX_SHORT_TEXT)).optional(),
     amount: z
       .string()
       .trim()
       .min(1, 'Amount is required')
       .refine((value) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0, 'Enter a valid amount'),
-    description: z.string().trim().optional(),
-    expenseDate: z.string().trim().min(1, 'Expense date is required'),
+    description: z.string().trim().max(MAX_NOTES, TOO_LONG(MAX_NOTES)).optional(),
+    // An expense is money already spent; it can't be dated in the future.
+    expenseDate: z
+      .string()
+      .trim()
+      .min(1, 'Expense date is required')
+      .refine((value) => value <= todayLocalDate(), 'Expense date cannot be in the future'),
     isRecurring: z.boolean()
   })
   .refine((data) => data.category !== CUSTOM_SENTINEL || Boolean(data.customCategory?.trim()), {
@@ -139,7 +146,7 @@ export function ExpenseFormPage() {
         {categoryValue === CUSTOM_SENTINEL && (
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.expenses.customCategoryLabel} size="sm" className="text-ink-muted" />
-            <input type="text" autoFocus className={inputClass} {...register('customCategory')} />
+            <input type="text" autoFocus maxLength={MAX_SHORT_TEXT} className={inputClass} {...register('customCategory')} />
             {errors.customCategory && <span className="text-xs text-danger">{errors.customCategory.message}</span>}
           </label>
         )}
@@ -152,7 +159,7 @@ export function ExpenseFormPage() {
 
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.expenses.description} size="sm" className="text-ink-muted" />
-          <input type="text" className={inputClass} {...register('description')} />
+          <input type="text" maxLength={MAX_NOTES} className={inputClass} {...register('description')} />
         </label>
 
         <label className="flex flex-col gap-1">

@@ -3,12 +3,24 @@ import type { ElectronApplication, Page } from 'playwright'
 import { launchApp, freshProfileDir, shoot } from '../fixtures/support'
 
 /**
- * Part H — per-device account binding. Exercised through the REAL running app:
- * every call goes through the actual auth IPC handlers and their on-disk files
- * (device-owner.json, session.enc). Firebase isn't involved — the lock lives at
- * the saveLocalSession gate, which is what the login screen calls after a valid
- * sign-in — so this reproduces exactly what "valid credentials, wrong device"
- * does, without needing two real accounts.
+ * Part H — device lock (Firestore-backed redesign).
+ *
+ * The AUTHORITATIVE binding now lives in Firestore (device_locks/{deviceId}) and
+ * is enforced in the renderer (features/auth/lib/deviceLock.ts → verifyDevice)
+ * BEFORE any session is saved. That server round-trip and its full decision
+ * matrix — including the "delete the local file to re-register" tamper attempts,
+ * both online and offline — are covered deterministically by the real decision
+ * code in scripts/deviceLockDecision.test.mts. Firebase/Firestore aren't
+ * reachable from this offline E2E harness, so the server gate itself is proven
+ * there, not here.
+ *
+ * What THIS E2E proves through the real running app + real auth IPC + on-disk
+ * files is the OFFLINE FAST-PATH's data source: device-owner.json is written as
+ * a local cache on a successful (already-gated) login, read back via
+ * getDeviceOwner, and cleared by resetDeviceBinding for admin re-onboarding.
+ * saveLocalSession is deliberately NO LONGER a gate — it trusts that the
+ * renderer's Firestore check already passed — so it is tested here only as the
+ * cache writer it now is.
  */
 
 function saveSession(window: Page, uid: string, email: string) {
@@ -27,7 +39,7 @@ function saveSession(window: Page, uid: string, email: string) {
   )
 }
 
-test.describe.serial('Device lock (Part H)', () => {
+test.describe.serial('Device lock (Part H, Firestore-backed)', () => {
   let app: ElectronApplication
   let window: Page
 
@@ -39,37 +51,50 @@ test.describe.serial('Device lock (Part H)', () => {
     await app.close()
   })
 
-  test('first account binds the device and reaches the Dashboard', async () => {
+  test('a gated login writes the local offline-cache and reaches the Dashboard', async () => {
     // Fresh install → login screen.
     await expect(window.getByText('Sign In', { exact: true })).toBeVisible()
 
+    // Post-gate: the renderer already verified this account against Firestore,
+    // so saveLocalSession persists the session and caches the owner locally.
     const result = await saveSession(window, 'owner-A', 'owner-a@example.com')
     expect(result.ok).toBe(true)
 
-    // Owner is let in (real UI: Dashboard renders after reload).
     await window.reload()
     await window.waitForLoadState('domcontentloaded')
     await expect(window.locator('main').getByText('Dashboard', { exact: true })).toBeVisible({ timeout: 20_000 })
 
     const owner = await window.evaluate(() => window.api.auth.getDeviceOwner())
     expect(owner?.ownerUid).toBe('owner-A')
+    expect(owner?.ownerEmail).toBe('owner-a@example.com')
     await shoot(window, '13-device-owner-dashboard')
   })
 
-  test('a different valid account is refused and cannot overwrite the session', async () => {
-    const result = await saveSession(window, 'intruder-B', 'intruder-b@example.com')
-    expect(result.ok).toBe(false)
-    expect(result.reason).toBe('device-locked')
-    expect(result.ownerEmail).toBe('owner-a@example.com')
+  test('the local cache is refreshed to the authoritative owner on each save (self-correcting)', async () => {
+    // Re-saving keeps the cache pointed at the real owner — this is what makes a
+    // tampered/stale device-owner.json self-correct to the authoritative owner
+    // the next time the (already-gated) owner logs in.
+    const result = await saveSession(window, 'owner-A', 'owner-a@example.com')
+    expect(result.ok).toBe(true)
 
-    // The refused attempt left the owner's session untouched.
+    const owner = await window.evaluate(() => window.api.auth.getDeviceOwner())
+    expect(owner?.ownerUid).toBe('owner-A')
+
+    // The owner's encrypted session is intact.
     const session = await window.evaluate(() => window.api.auth.getLocalSession())
     expect(session?.uid).toBe('owner-A')
   })
 
-  test('distributor reset re-binds the device to a new account', async () => {
+  test('resetDeviceBinding clears ONLY the local cache (admin re-onboarding, local half)', async () => {
     await window.evaluate(() => window.api.auth.resetDeviceBinding())
 
+    // Local offline fast-path is now invalidated; the authoritative reset is the
+    // admin deleting the Firestore doc in the console.
+    const cleared = await window.evaluate(() => window.api.auth.getDeviceOwner())
+    expect(cleared).toBeNull()
+
+    // After the admin has cleared Firestore too, the next login re-binds — the
+    // local cache is rewritten to the new owner.
     const result = await saveSession(window, 'newowner-C', 'c@example.com')
     expect(result.ok).toBe(true)
 

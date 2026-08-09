@@ -295,7 +295,12 @@ export const dictionary = {
     extendBy1Day: { en: '+1 day', ur: '+1 دن' },
     extendBy3Days: { en: '+3 days', ur: '+3 دن' },
     extendBy1Week: { en: '+1 week', ur: '+1 ہفتہ' },
-    updateDate: { en: 'Update Date', ur: 'تاریخ اپ ڈیٹ کریں' }
+    updateDate: { en: 'Update Date', ur: 'تاریخ اپ ڈیٹ کریں' },
+    extendDatePast: { en: 'The new date cannot be in the past.', ur: 'نئی تاریخ ماضی میں نہیں ہو سکتی۔' },
+    extendDateNotLater: {
+      en: 'Pick a date after the current one — the date must move forward.',
+      ur: 'موجودہ تاریخ کے بعد کی تاریخ منتخب کریں — تاریخ آگے ہونی چاہیے۔'
+    }
   },
   repairs: {
     addNew: { en: 'New Repair Order', ur: 'نیا مرمت آرڈر' },
@@ -312,6 +317,10 @@ export const dictionary = {
     costPriceHint: {
       en: 'Cost Price not entered — profit may be inaccurate for this repair.',
       ur: 'لاگت قیمت درج نہیں — اس مرمت کا منافع غلط ہو سکتا ہے۔'
+    },
+    costExceedsPriceHint: {
+      en: 'Cost Price is higher than Total Price — this repair will run at a loss. Check if this is a typo.',
+      ur: 'لاگت قیمت کل قیمت سے زیادہ ہے — اس مرمت پر نقصان ہوگا۔ دیکھ لیں کہ کہیں غلطی تو نہیں۔'
     },
     advanceLockedHint: {
       en: 'The booking advance is fixed. To record more money, use Record Payment.',
@@ -485,6 +494,10 @@ export const dictionary = {
     settlementAmount: { en: 'Settlement Amount', ur: 'ادائیگی کی رقم' },
     settleFull: { en: 'Full', ur: 'مکمل' },
     settlementDate: { en: 'Settlement Date', ur: 'ادائیگی کی تاریخ' },
+    settlementFinalNote: {
+      en: 'Recorded settlements are final and cannot be undone.',
+      ur: 'درج شدہ ادائیگیاں حتمی ہیں اور واپس نہیں لی جا سکتیں۔'
+    },
     extendDueDate: { en: 'Extend Due Date', ur: 'تاریخ بڑھائیں' },
     emptyTitle: { en: 'No Udhaar entries yet', ur: 'ابھی کوئی ادھار درج نہیں' },
     emptyBody: {

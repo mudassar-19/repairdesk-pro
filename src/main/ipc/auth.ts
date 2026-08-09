@@ -19,10 +19,13 @@ export interface DeviceOwner {
 
 export interface SaveSessionResult {
   ok: boolean
-  /** Why a save was refused, when ok is false. */
-  reason?: 'encryption-unavailable' | 'device-locked'
-  /** For 'device-locked', the account this device is already bound to (so the UI can name it). */
-  ownerEmail?: string
+  /**
+   * Why a save was refused, when ok is false. The device-lock decision is NO
+   * longer made here — it is authoritative in Firestore and enforced in the
+   * renderer (see features/auth/lib/deviceLock.ts) BEFORE this is called, so
+   * the only refusal reason left is OS encryption being unavailable.
+   */
+  reason?: 'encryption-unavailable'
 }
 
 const sessionPath = (): string => path.join(app.getPath('userData'), 'session.enc')
@@ -30,14 +33,18 @@ const deviceIdPath = (): string => path.join(app.getPath('userData'), 'device-id
 const deviceOwnerPath = (): string => path.join(app.getPath('userData'), 'device-owner.json')
 
 /**
- * Device-lock (Part H): each install is bound to the Firebase UID of the FIRST
- * account that signs in on it, so entering someone else's (otherwise valid)
- * credentials on that device is refused. Deliberately a plain JSON file, not
- * encrypted or obfuscated — the UID is not a secret, and no master password is
- * baked into the build (which would be extractable and give false security).
- * This is casual-reuse prevention for a personally-onboarded distribution
- * model, not an unbypassable control. To re-onboard a device, the distributor
- * deletes device-owner.json (see auth:resetDeviceBinding).
+ * Device-lock (Part H, redesigned): the AUTHORITATIVE binding now lives in
+ * Firestore (device_locks/{deviceId}) and is checked/created in the renderer
+ * before a session is ever saved — see features/auth/lib/deviceLock.ts. This
+ * device-owner.json file is now only a LOCAL CACHE serving the offline-login
+ * fast-path: it lets an already-verified device keep working without internet,
+ * but it is never the sole basis for a NEW binding decision, so deleting or
+ * editing it can't re-register a device (online, Firestore rejects a mismatch;
+ * offline with no cache, login fails closed). It is rewritten from the
+ * authoritative owner on every successful login, so a tampered value
+ * self-corrects. The UID is not a secret; no master password is baked into the
+ * build. Re-onboarding is an admin action: delete the Firestore doc in the
+ * Firebase Console (auth:resetDeviceBinding only clears this local cache).
  */
 function readDeviceOwner(): DeviceOwner | null {
   try {
@@ -76,12 +83,11 @@ export function registerAuthIpc(): void {
   ipcMain.handle('auth:saveLocalSession', (_event, session: LocalSession): SaveSessionResult => {
     if (!safeStorage.isEncryptionAvailable()) return { ok: false, reason: 'encryption-unavailable' }
 
-    const owner = readDeviceOwner()
-    if (owner && owner.ownerUid !== session.uid) {
-      // Valid credentials, wrong device — refuse without ever writing a session.
-      return { ok: false, reason: 'device-locked', ownerEmail: owner.ownerEmail }
-    }
-    if (!owner) bindDeviceOwner(session)
+    // The device-lock decision already passed authoritatively (Firestore) in the
+    // renderer before we got here, so the caller is allowed on this device.
+    // Refresh the local offline cache to the authoritative owner — this also
+    // corrects any tampered/stale device-owner.json to the real owner.
+    bindDeviceOwner(session)
 
     const encrypted = safeStorage.encryptString(JSON.stringify(session))
     fs.writeFileSync(sessionPath(), encrypted)
@@ -97,8 +103,13 @@ export function registerAuthIpc(): void {
 
   ipcMain.handle('auth:getDeviceOwner', (): DeviceOwner | null => readDeviceOwner())
 
-  // Distributor re-onboarding: drop the binding so the next login re-binds the
-  // device to a new account. Intentionally not surfaced as a normal UI button.
+  // Clears ONLY the local offline cache — NOT the authoritative Firestore
+  // binding, which the client is intentionally forbidden (by security rules)
+  // from deleting. A true re-onboarding is an admin action: delete the
+  // device_locks/{deviceId} doc in the Firebase Console, then the next online
+  // login re-binds. Clearing the local cache alone can never re-register a
+  // device, since Firestore still rejects a mismatched account online.
+  // Intentionally not surfaced as a normal UI button.
   ipcMain.handle('auth:resetDeviceBinding', (): void => {
     if (fs.existsSync(deviceOwnerPath())) fs.unlinkSync(deviceOwnerPath())
   })

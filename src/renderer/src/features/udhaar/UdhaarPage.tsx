@@ -212,6 +212,7 @@ export function UdhaarPage() {
                           initialDate={addDays(today(), 1)}
                           dateLabel={dictionary.udhaar.newDueDate}
                           confirmLabel={dictionary.dashboard.updateDate}
+                          minDate={entry.dueDate}
                           onConfirm={(newDate) => handleExtendDueDate(entry, newDate)}
                         />
                       </td>

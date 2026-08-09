@@ -91,7 +91,7 @@ test.describe.serial('POS Mode (Part I)', () => {
     const model = `POS-PEND-${SUFFIX}`
     await posCreateCustomerAndDevice(window, {
       name: `POS Pend ${SUFFIX}`,
-      phone: `0300${SUFFIX}`,
+      phone: `03000${SUFFIX}`,
       brand: 'Nokia',
       model,
       price: '2000',
@@ -117,7 +117,7 @@ test.describe.serial('POS Mode (Part I)', () => {
     const model = `POS-PAID-${SUFFIX}`
     await posCreateCustomerAndDevice(window, {
       name: `POS Paid ${SUFFIX}`,
-      phone: `0301${SUFFIX}`,
+      phone: `03001${SUFFIX}`,
       brand: 'Apple',
       model,
       price: '3000'
@@ -137,7 +137,7 @@ test.describe.serial('POS Mode (Part I)', () => {
     const model = `POS-CRED-${SUFFIX}`
     await posCreateCustomerAndDevice(window, {
       name: `POS Cred ${SUFFIX}`,
-      phone: `0302${SUFFIX}`,
+      phone: `03002${SUFFIX}`,
       brand: 'Realme',
       model,
       price: '4000'
@@ -167,7 +167,7 @@ test.describe.serial('POS Mode (Part I)', () => {
     // Create a pending repair TODAY via the real API — an existing order to find.
     await window.evaluate(
       async ({ model, suffix }) => {
-        const c = await window.api.customers.create({ name: `Deliver Cust ${suffix}`, phone: `0305${suffix}` })
+        const c = await window.api.customers.create({ name: `Deliver Cust ${suffix}`, phone: `03005${suffix}` })
         await window.api.repairs.create({
           customerId: c.id,
           deviceBrand: 'HTC',

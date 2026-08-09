@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, like, or, sql } from 'drizzle-orm'
+import { and, desc, eq, like, or, sql } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm/utils'
 import type { Db } from '../client'
 import { customers, repairs } from '../schema'
@@ -70,7 +70,9 @@ export class CustomerRepository extends BaseRepository {
       conditions.push(or(like(customers.name, term), like(customers.phone, term))!)
     }
     const query = this.db.select().from(customers)
-    return conditions.length ? query.where(and(...conditions)).all() : query.all()
+    const filtered = conditions.length ? query.where(and(...conditions)) : query
+    // Default newest-first for the Customers list.
+    return filtered.orderBy(desc(customers.createdAt)).all()
   }
 
   /**
@@ -100,7 +102,9 @@ export class CustomerRepository extends BaseRepository {
       .leftJoin(repairs, and(eq(repairs.customerId, customers.id), eq(repairs.isDeleted, false)))
       .groupBy(customers.id)
 
-    return (conditions.length ? query.where(and(...conditions)) : query).all()
+    const filtered = conditions.length ? query.where(and(...conditions)) : query
+    // Default newest-first for the Customers list.
+    return filtered.orderBy(desc(customers.createdAt)).all()
   }
 
   update(id: string, patch: UpdateCustomerInput): Customer | null {

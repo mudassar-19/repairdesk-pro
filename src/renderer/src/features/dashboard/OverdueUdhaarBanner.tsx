@@ -129,6 +129,7 @@ export function OverdueUdhaarBanner({ onChanged }: OverdueUdhaarBannerProps) {
                 initialDate={addDays(today(), 1)}
                 dateLabel={dictionary.udhaar.newDueDate}
                 confirmLabel={dictionary.dashboard.updateDate}
+                minDate={entry.dueDate}
                 onConfirm={(newDate) => handleApplyExtension(entry, newDate)}
               />
             )}

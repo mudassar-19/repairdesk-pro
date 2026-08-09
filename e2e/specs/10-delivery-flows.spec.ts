@@ -71,11 +71,11 @@ test.describe.serial('New delivery / credit / settlement flows', () => {
   let window: Page
 
   const CUST = {
-    advance: { name: `Adv ${SUFFIX}`, phone: `0300${SUFFIX}` },
-    full: { name: `Full ${SUFFIX}`, phone: `0301${SUFFIX}` },
-    c100: { name: `C100 ${SUFFIX}`, phone: `0302${SUFFIX}` },
-    c50: { name: `C50 ${SUFFIX}`, phone: `0303${SUFFIX}` },
-    ccustom: { name: `CCust ${SUFFIX}`, phone: `0304${SUFFIX}` }
+    advance: { name: `Adv ${SUFFIX}`, phone: `03000${SUFFIX}` },
+    full: { name: `Full ${SUFFIX}`, phone: `03001${SUFFIX}` },
+    c100: { name: `C100 ${SUFFIX}`, phone: `03002${SUFFIX}` },
+    c50: { name: `C50 ${SUFFIX}`, phone: `03003${SUFFIX}` },
+    ccustom: { name: `CCust ${SUFFIX}`, phone: `03004${SUFFIX}` }
   }
 
   test.beforeAll(async () => {

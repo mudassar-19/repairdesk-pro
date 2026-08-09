@@ -55,7 +55,9 @@ test.describe.serial('CustomerPicker — pinned Create + smart pre-fill', () => 
     // Seed enough customers that the picker's results list scrolls.
     await window.evaluate(async (suffix) => {
       for (let i = 0; i < 12; i++) {
-        await window.api.customers.create({ name: `PickCust ${i} ${suffix}`, phone: `031${i}${suffix}` })
+        // Valid 11-digit "03…" numbers, unique per i, distinct from the prefill
+        // values asserted below (03009…, 03018…).
+        await window.api.customers.create({ name: `PickCust ${i} ${suffix}`, phone: `032${String(i).padStart(2, '0')}${suffix}` })
       }
     }, SUFFIX)
   })

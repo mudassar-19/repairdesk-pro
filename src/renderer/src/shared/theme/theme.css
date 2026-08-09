@@ -116,6 +116,28 @@ body {
   body {
     background: #ffffff !important;
   }
+  /* The two AppLayout shell containers are h-screen + overflow-hidden on
+     screen; left as-is they clip a multi-page report to one viewport height in
+     the PDF regardless of main's own settings. Lift their clipping so the full
+     document flows across as many pages as it needs. */
+  .app-shell {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  /* Page-break hygiene for multi-page reports: never split a table row across
+     a page boundary, repeat table headers on each page, and keep a section
+     heading with the content that follows it. */
+  tr {
+    break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
   main {
     overflow: visible !important;
     height: auto !important;

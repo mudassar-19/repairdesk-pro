@@ -4,6 +4,7 @@ import { todayLocalDateString } from '../lib/date'
 import { UdhaarRepository, type Udhaar, type NewUdhaarInput, type UpdateUdhaarInput, type UdhaarFilters } from '../db/repositories/udhaarRepository'
 import { UdhaarSettlementRepository, type UdhaarSettlement } from '../db/repositories/udhaarSettlementRepository'
 import { recordUdhaarSettlement, type RecordSettlementInput, type RecordSettlementResult } from '../db/services/udhaarService'
+import { assertValidMobilePhone, assertPositiveAmount, assertNonEmpty } from '../lib/validation'
 import type { UdhaarDirection } from '../db/schema'
 
 export interface UdhaarSummary {
@@ -18,7 +19,14 @@ export interface UdhaarSummary {
  * ever going stale relative to its settlement history.
  */
 export function registerUdhaarIpc(): void {
-  ipcMain.handle('udhaar:create', (_event, input: NewUdhaarInput): Udhaar => new UdhaarRepository(getDatabase()).create(input))
+  ipcMain.handle('udhaar:create', (_event, input: NewUdhaarInput): Udhaar => {
+    // Backend guards: a named person, a positive amount, and (if entered) a
+    // valid "Someone Else" phone. Due date may be in the past (overdue tracking).
+    assertNonEmpty(input.personName, 'Person name')
+    assertPositiveAmount(input.totalAmount, 'Udhaar amount')
+    if (input.personPhone) assertValidMobilePhone(input.personPhone)
+    return new UdhaarRepository(getDatabase()).create(input)
+  })
 
   ipcMain.handle('udhaar:getById', (_event, id: string): Udhaar | null => new UdhaarRepository(getDatabase()).findById(id))
 
