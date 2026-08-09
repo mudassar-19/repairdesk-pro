@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, app } from 'electron'
 import { verifyDatabaseConnection } from '../db/verify'
 
 export interface SystemHealth {
@@ -18,4 +18,9 @@ export function registerSystemIpc(): void {
       db: verifyDatabaseConnection()
     }
   })
+
+  // The real installed app version, straight from Electron (which reads it
+  // from package.json at build time). The sidebar footer renders this so it
+  // tracks every release build automatically — no hardcoded UI string to bump.
+  ipcMain.handle('system:getAppVersion', (): string => app.getVersion())
 }

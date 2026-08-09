@@ -89,6 +89,8 @@ function mutate<A extends unknown[], R>(channel: string, entities: DataEntity[])
 
 const api = {
   getSystemHealth: (): Promise<SystemHealth> => ipcRenderer.invoke('system:getHealth'),
+  /** Real installed app version (from Electron/package.json) for the sidebar footer. */
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('system:getAppVersion'),
   /** Subscribe to post-write data-change events. Returns an unsubscribe fn. */
   onDataChanged: (listener: (entities: DataEntity[]) => void): (() => void) => {
     dataChangeListeners.add(listener)

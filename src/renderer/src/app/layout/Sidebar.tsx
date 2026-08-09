@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { dictionary } from '@shared/i18n'
@@ -10,6 +11,13 @@ export function Sidebar() {
   const collapsed = useSidebarStore((state) => state.collapsed)
   const mainItems = navItems.slice(0, -1)
   const settingsItem = navItems[navItems.length - 1]!
+
+  // Real installed version from the main process (package.json → app.getVersion()),
+  // so the footer tracks each release build automatically.
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    window.api.getAppVersion().then(setVersion).catch(() => setVersion(''))
+  }, [])
 
   const linkClass = (isActive: boolean) =>
     `group relative flex items-center gap-sm rounded-md px-sm py-sm transition-colors ${
@@ -58,7 +66,7 @@ export function Sidebar() {
             <img src={repairdeskIcon} alt="" className="h-8 w-8 flex-shrink-0 rounded-md" />
             <div className="flex flex-col">
               <span className="text-xs font-medium text-ink-muted">{dictionary.app.name.en}</span>
-              <span className="text-xs text-ink-muted opacity-70">Phase 1 · v0.1.0</span>
+              {version && <span className="text-xs text-ink-muted opacity-70">v{version}</span>}
             </div>
           </div>
         ) : (
