@@ -24,8 +24,7 @@ import { commonIssues, isIssueChipSelected, toggleIssueChip } from '@shared/lib/
 import { advanceOnEnter } from '@shared/lib/formKeyboardFlow'
 import { MAX_ISSUE } from '@shared/lib/textLimits'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
-import type { Repair } from '../../../../main/db/repositories/repairRepository'
-import type { DeliverOnCreditResult } from '../../../../main/db/services/deliveryService'
+import type { Repair, NewRepairInput } from '../../../../main/db/repositories/repairRepository'
 
 const inputClass =
   'rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20'
@@ -50,8 +49,12 @@ export function PosNewOrder() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [savedMessage, setSavedMessage] = useState(false)
 
-  const [createdRepair, setCreatedRepair] = useState<Repair | null>(null)
   const [creditOpen, setCreditOpen] = useState(false)
+  // The order captured when the credit-split modal opens. NOTHING is written to
+  // the database at this point — the repair, payment, and udhaar are all created
+  // together, atomically, only when the modal is confirmed (see handleCreditConfirm).
+  // Cancelling the modal just clears this, leaving no record behind.
+  const [pendingCredit, setPendingCredit] = useState<{ payload: NewRepairInput; customer: Customer } | null>(null)
   const [receiptRepair, setReceiptRepair] = useState<Repair | null>(null)
 
   const {
@@ -77,7 +80,7 @@ export function PosNewOrder() {
     setSelectedCustomer(null)
     setMode('pending')
     setSubmitError(null)
-    setCreatedRepair(null)
+    setPendingCredit(null)
     setReceiptRepair(null)
     setCreditOpen(false)
   }
@@ -86,25 +89,40 @@ export function PosNewOrder() {
     setReceiptRepair(repair)
   }
 
+  const logCreated = (repair: Repair, customer: Customer) => {
+    logActivity({
+      actionType: 'create',
+      entityType: 'repair',
+      entityId: repair.id,
+      description: `Repair order created (POS) for ${customer.name} (${repair.deviceBrand} ${repair.deviceModel})`
+    })
+  }
+
   const onSubmit = handleSubmit(async (values) => {
     if (!selectedCustomer) {
       setCustomerError(true)
       return
     }
-    setSaving(true)
     setSubmitError(null)
     setSavedMessage(false)
-    try {
-      const repair = await window.api.repairs.create(buildRepairPayload(values, selectedCustomer.id))
-      logActivity({
-        actionType: 'create',
-        entityType: 'repair',
-        entityId: repair.id,
-        description: `Repair order created (POS) for ${selectedCustomer.name} (${repair.deviceBrand} ${repair.deviceModel})`
-      })
+    const payload = buildRepairPayload(values, selectedCustomer.id)
 
+    if (mode === 'credit') {
+      // ATOMIC: create NOTHING yet. Stash the order and open the split modal —
+      // the repair + payment + linked udhaar are created together in one
+      // transaction only when the modal is confirmed (handleCreditConfirm).
+      // If the modal is cancelled, nothing is ever written.
+      setPendingCredit({ payload, customer: selectedCustomer })
+      setCreditOpen(true)
+      return
+    }
+
+    setSaving(true)
+    try {
       if (mode === 'delivered') {
-        const result = await window.api.repairs.deliverWithFullPayment(repair.id)
+        // Atomic: create + full payment + delivered in a single transaction.
+        const result = await window.api.repairs.createDeliveredPaid(payload)
+        logCreated(result.repair, selectedCustomer)
         logActivity({
           actionType: 'status_change',
           entityType: 'repair',
@@ -113,11 +131,9 @@ export function PosNewOrder() {
           metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null }
         })
         openReceipt(result.repair)
-      } else if (mode === 'credit') {
-        // The split happens in the modal; the receipt opens once it's delivered.
-        setCreatedRepair(repair)
-        setCreditOpen(true)
       } else {
+        const repair = await window.api.repairs.create(payload)
+        logCreated(repair, selectedCustomer)
         openReceipt(repair)
       }
     } catch {
@@ -127,8 +143,17 @@ export function PosNewOrder() {
     }
   })
 
-  const handleCreditDelivered = (result: DeliverOnCreditResult) => {
-    setCreditOpen(false)
+  /**
+   * Confirm of the credit-split modal: the FIRST and only write for a
+   * take-now-on-credit order. createOnCredit builds the repair, records the
+   * paid portion, creates the linked udhaar, and marks it delivered — all in one
+   * transaction. Throwing here keeps the modal open (nothing written); resolving
+   * opens the receipt.
+   */
+  const handleCreditConfirm = async ({ udhaarAmount, dueDate }: { udhaarAmount: number; dueDate: string | null }) => {
+    if (!pendingCredit) return
+    const result = await window.api.repairs.createOnCredit({ repair: pendingCredit.payload, udhaarAmount, dueDate })
+    logCreated(result.repair, pendingCredit.customer)
     logActivity({
       actionType: 'status_change',
       entityType: 'repair',
@@ -136,6 +161,8 @@ export function PosNewOrder() {
       description: `Delivered on credit via POS${result.payment ? ` — paid ${result.payment.amount.toFixed(2)}` : ''}${result.udhaar ? `, ${result.udhaar.totalAmount.toFixed(2)} on udhaar` : ''}`,
       metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null, udhaarId: result.udhaar?.id ?? null }
     })
+    setCreditOpen(false)
+    setPendingCredit(null)
     openReceipt(result.repair)
   }
 
@@ -323,17 +350,17 @@ export function PosNewOrder() {
         </div>
       </div>
 
-      {/* Credit split (only for the "taking now — on credit" path) */}
+      {/* Credit split (only for the "taking now — on credit" path). Nothing is
+          created until this is confirmed — cancelling writes no repair/payment/
+          udhaar and simply returns to the still-filled form. */}
       <DeliverOnCreditModal
-        repair={creditOpen ? createdRepair : null}
         open={creditOpen}
+        remaining={remaining}
         onClose={() => {
-          // Backing out of the split leaves the order created but still pending;
-          // print its receipt and move on rather than losing the order.
           setCreditOpen(false)
-          if (createdRepair) openReceipt(createdRepair)
+          setPendingCredit(null)
         }}
-        onDelivered={handleCreditDelivered}
+        onConfirm={handleCreditConfirm}
       />
 
       {/* Receipt reuses the existing template; closing it resets for the next customer. */}

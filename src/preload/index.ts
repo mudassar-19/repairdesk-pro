@@ -25,7 +25,12 @@ import type {
 } from '../main/db/repositories/repairRepository'
 import type { Payment, PaymentWithContext, PaymentListFilters, NewPaymentInput } from '../main/db/repositories/paymentRepository'
 import type { RecordPaymentResult } from '../main/db/services/paymentService'
-import type { DeliverResult, DeliverOnCreditInput, DeliverOnCreditResult } from '../main/db/services/deliveryService'
+import type {
+  DeliverResult,
+  DeliverOnCreditInput,
+  DeliverOnCreditResult,
+  CreateRepairOnCreditInput
+} from '../main/db/services/deliveryService'
 import type {
   Expense,
   ExpenseFilters,
@@ -139,6 +144,18 @@ const api = {
       'repairs',
       'payments',
       'udhaar',
+      'customers'
+    ]),
+    // Atomic POS take-now flows (create + deliver in one transaction).
+    createOnCredit: mutate<[CreateRepairOnCreditInput], DeliverOnCreditResult>('repairs:createOnCredit', [
+      'repairs',
+      'payments',
+      'udhaar',
+      'customers'
+    ]),
+    createDeliveredPaid: mutate<[NewRepairInput], DeliverResult>('repairs:createDeliveredPaid', [
+      'repairs',
+      'payments',
       'customers'
     ])
   },

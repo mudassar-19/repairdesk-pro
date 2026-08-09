@@ -12,9 +12,12 @@ import { createRepair } from '../db/services/repairService'
 import {
   deliverWithFullPayment,
   deliverOnCredit,
+  createRepairOnCredit,
+  createRepairDeliveredPaid,
   type DeliverResult,
   type DeliverOnCreditInput,
-  type DeliverOnCreditResult
+  type DeliverOnCreditResult,
+  type CreateRepairOnCreditInput
 } from '../db/services/deliveryService'
 
 /**
@@ -58,5 +61,17 @@ export function registerRepairsIpc(): void {
   ipcMain.handle(
     'repairs:deliverOnCredit',
     (_event, input: DeliverOnCreditInput): DeliverOnCreditResult => deliverOnCredit(getDatabase(), input)
+  )
+
+  // Atomic POS take-now flows: create the repair AND deliver (paid-in-full or
+  // on-credit) in one transaction, so cancelling the credit-split modal leaves
+  // nothing behind and a failed delivery never orphans a bare pending repair.
+  ipcMain.handle(
+    'repairs:createOnCredit',
+    (_event, input: CreateRepairOnCreditInput): DeliverOnCreditResult => createRepairOnCredit(getDatabase(), input)
+  )
+  ipcMain.handle(
+    'repairs:createDeliveredPaid',
+    (_event, input: NewRepairInput): DeliverResult => createRepairDeliveredPaid(getDatabase(), input)
   )
 }

@@ -178,11 +178,13 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
       </div>
 
       <DeliverOnCreditModal
-        repair={creditFor}
         open={creditFor !== null}
+        remaining={creditFor?.remainingBalance ?? 0}
         onClose={() => setCreditFor(null)}
-        onDelivered={(result) => {
-          if (creditFor) handleCreditDelivered(creditFor, result)
+        onConfirm={async ({ udhaarAmount, dueDate }) => {
+          if (!creditFor) return
+          const result = await window.api.repairs.deliverOnCredit({ repairId: creditFor.id, udhaarAmount, dueDate })
+          handleCreditDelivered(creditFor, result)
         }}
       />
     </div>

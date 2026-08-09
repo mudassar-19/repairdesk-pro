@@ -5,8 +5,6 @@ import { dictionary } from '@shared/i18n'
 import { formatCurrency } from '@shared/lib/currency'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
 import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
-import type { Repair } from '../../../../main/db/repositories/repairRepository'
-import type { DeliverOnCreditResult } from '../../../../main/db/services/deliveryService'
 
 const inputClass =
   'rounded-md border border-border bg-surface px-sm py-sm text-base text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20'
@@ -14,16 +12,30 @@ const inputClass =
 const round2 = (n: number): number => Math.round(n * 100) / 100
 
 export interface DeliverOnCreditModalProps {
-  repair: Repair | null
   open: boolean
+  /** The balance being split into a paid-now portion and an on-credit (udhaar) portion. */
+  remaining: number
   onClose: () => void
-  onDelivered: (result: DeliverOnCreditResult) => void
+  /**
+   * Persist the split. The PARENT owns the actual write — deliverOnCredit for an
+   * existing repair, or createOnCredit (create + deliver atomically) for a
+   * brand-new POS order — so nothing is created until this resolves. Cancelling
+   * the modal calls onClose only, writing nothing. Throw to keep the modal open
+   * with an error shown.
+   */
+  onConfirm: (input: { udhaarAmount: number; dueDate: string | null }) => Promise<void>
 }
 
-export function DeliverOnCreditModal({ repair, open, onClose, onDelivered }: DeliverOnCreditModalProps) {
+/**
+ * Collects the "paid now vs on credit" split (Full/Half quick buttons + a manual
+ * amount + optional due date) and hands the chosen amounts to the parent. It is
+ * purely presentational — it performs NO database write itself — which is what
+ * lets the POS New Order flow defer ALL creation (repair + payment + udhaar) to
+ * the moment this is confirmed, so backing out creates nothing.
+ */
+export function DeliverOnCreditModal({ open, remaining, onClose, onConfirm }: DeliverOnCreditModalProps) {
   const { branding } = useBrandingSettings()
   const currency = branding?.currency ?? 'PKR'
-  const remaining = repair?.remainingBalance ?? 0
 
   const [amount, setAmount] = useState('')
   const [locked, setLocked] = useState(false)
@@ -31,7 +43,7 @@ export function DeliverOnCreditModal({ repair, open, onClose, onDelivered }: Del
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Reset whenever a different repair is opened.
+  // Reset whenever the modal (re)opens.
   useEffect(() => {
     if (open) {
       setAmount('')
@@ -39,9 +51,9 @@ export function DeliverOnCreditModal({ repair, open, onClose, onDelivered }: Del
       setDueDate('')
       setError(null)
     }
-  }, [open, repair?.id])
+  }, [open])
 
-  if (!open || !repair) return null
+  if (!open) return null
 
   const udhaarAmount = Math.min(Math.max(Number(amount) || 0, 0), remaining)
   const payingNow = round2(remaining - udhaarAmount)
@@ -66,12 +78,7 @@ export function DeliverOnCreditModal({ repair, open, onClose, onDelivered }: Del
     setSaving(true)
     setError(null)
     try {
-      const result = await window.api.repairs.deliverOnCredit({
-        repairId: repair.id,
-        udhaarAmount,
-        dueDate: dueDate.trim() || null
-      })
-      onDelivered(result)
+      await onConfirm({ udhaarAmount, dueDate: dueDate.trim() || null })
     } catch {
       setError('Could not deliver on credit. Please try again.')
     } finally {

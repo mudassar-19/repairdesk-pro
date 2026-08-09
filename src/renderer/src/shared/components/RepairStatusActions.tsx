@@ -179,10 +179,13 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
       )}
 
       <DeliverOnCreditModal
-        repair={creditModalOpen ? repair : null}
         open={creditModalOpen}
+        remaining={repair.remainingBalance}
         onClose={() => setCreditModalOpen(false)}
-        onDelivered={handleCreditDelivered}
+        onConfirm={async ({ udhaarAmount, dueDate }) => {
+          const result = await window.api.repairs.deliverOnCredit({ repairId: repair.id, udhaarAmount, dueDate })
+          handleCreditDelivered(result)
+        }}
       />
     </div>
   )
