@@ -26,16 +26,20 @@ export function useCloudBackupScheduler(enabled: boolean): void {
     let cancelled = false
 
     async function tick() {
-      const [backupSettings, state, driveStatus] = await Promise.all([
+      const [backupSettings, state, driveStatus, hasData] = await Promise.all([
         window.api.settings.getBackupSettings(),
         window.api.backup.getCloudBackupState(),
-        window.api.googleDrive.getStatus()
+        window.api.googleDrive.getStatus(),
+        window.api.backup.hasBusinessData()
       ])
       // Google Drive not connected (or access was revoked) — never treat this
       // as a failure to retry or nag about here; the disconnected state is
       // surfaced in Settings instead, and local backups keep running as
       // normal in the meantime (see main/db/services/backupService.ts).
-      if (cancelled || !backupSettings.cloudBackupEnabled || !driveStatus.connected) return
+      // Also skip while the database is still empty: a scheduled backup of a
+      // brand-new install has nothing to protect (same guard as the local
+      // automatic backup). Manual "Back Up to Cloud Now" is unaffected.
+      if (cancelled || !backupSettings.cloudBackupEnabled || !driveStatus.connected || !hasData) return
 
       const due = isCloudBackupDue(backupSettings.scheduledTimes, state.lastCloudBackupAt, new Date())
       const isFirstCheck = !hasCheckedOnceRef.current

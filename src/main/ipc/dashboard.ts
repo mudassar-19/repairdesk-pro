@@ -24,7 +24,7 @@ export function registerDashboardIpc(): void {
   })
 
   ipcMain.handle(
-    'dashboard:getRecentRepairs',
-    (_event, limit: number): RepairWithCustomer[] => new RepairRepository(getDatabase()).findRecentWithCustomer(limit)
+    'dashboard:getRepairsNeedingAction',
+    (_event, limit: number): RepairWithCustomer[] => new RepairRepository(getDatabase()).findNeedingActionWithCustomer(limit)
   )
 }

@@ -64,6 +64,15 @@ test.describe.serial('POS Mode (Part I)', () => {
     await shoot(window, '15-pos-screen')
   })
 
+  test('header shows the logo plainly and the old POS badge is gone', async () => {
+    // Logo placed directly in the header (default RepairDex logo, or the shop's own if set) — no notch/cutout shape.
+    await expect(window.getByTestId('pos-logo')).toBeVisible()
+    await expect(window.getByTestId('pos-notch')).toHaveCount(0)
+    // The small "POS" badge next to the title has been removed.
+    await expect(window.getByText('POS', { exact: true })).toHaveCount(0)
+    await shoot(window, '15-pos-header')
+  })
+
   test('POS parity: issue quick-chips fill the field and Enter advances between fields', async () => {
     // J14 chips work on the POS screen too.
     await window.getByRole('button', { name: /Charging Port/ }).click()
@@ -150,6 +159,58 @@ test.describe.serial('POS Mode (Part I)', () => {
     expect(data?.payments.some((p) => p.type === 'partial' && Math.abs(p.amount - 2000) < 0.01)).toBe(true)
     expect(data?.udhaar.some((u) => u.direction === 'receivable' && Math.abs(u.totalAmount - 2000) < 0.01)).toBe(true)
     await shoot(window, '15-pos-credit-done')
+  })
+
+  const DELIVER_MODEL = `DLV-${SUFFIX}`
+
+  test('Deliver Order tab: searches real existing not-yet-delivered orders by creation date', async () => {
+    // Create a pending repair TODAY via the real API — an existing order to find.
+    await window.evaluate(
+      async ({ model, suffix }) => {
+        const c = await window.api.customers.create({ name: `Deliver Cust ${suffix}`, phone: `0305${suffix}` })
+        await window.api.repairs.create({
+          customerId: c.id,
+          deviceBrand: 'HTC',
+          deviceModel: model,
+          issue: 'deliver test',
+          costPrice: 0,
+          repairPrice: 2500,
+          advanceAmount: 0
+        })
+      },
+      { model: DELIVER_MODEL, suffix: SUFFIX }
+    )
+
+    await window.getByRole('button', { name: /Deliver Order/ }).click()
+    const list = window.getByTestId('pos-deliver-list')
+    await window.getByLabel(/Search by customer/).fill(DELIVER_MODEL)
+    await expect(list.getByText(DELIVER_MODEL)).toBeVisible({ timeout: 5_000 })
+
+    // Date filter keys on the CREATION date: "Yesterday" hides a today order; "Today" shows it.
+    await window.getByLabel(/Order created/).selectOption('yesterday')
+    await expect(list.getByText(DELIVER_MODEL)).toHaveCount(0)
+    await window.getByLabel(/Order created/).selectOption('today')
+    await expect(list.getByText(DELIVER_MODEL)).toBeVisible()
+    await shoot(window, '15-pos-deliver-search')
+  })
+
+  test('Deliver Order tab: inline row actions deliver the order and record a full payment (reuses Part A)', async () => {
+    const list = window.getByTestId('pos-deliver-list')
+    // Actions are INLINE on the row (search still narrowed to this order). Pending
+    // → complete → deliver, using the reused RepairStatusActions — no select step.
+    await list.getByRole('button', { name: /Mark as Completed/ }).click()
+    await list.getByRole('button', { name: /Mark as Delivered/ }).click()
+
+    const data = await window.evaluate(async (model) => {
+      const repairs = await window.api.repairs.list()
+      const repair = repairs.find((r) => r.deviceModel === model)
+      const payments = repair ? await window.api.payments.findByRepairId(repair.id) : []
+      return { status: repair?.status, payments }
+    }, DELIVER_MODEL)
+
+    expect(data.status).toBe('delivered')
+    expect(data.payments.some((p) => p.type === 'full' && Math.abs(p.amount - 2500) < 0.01)).toBe(true)
+    await shoot(window, '15-pos-deliver-done')
   })
 
   test('returns to the Dashboard', async () => {

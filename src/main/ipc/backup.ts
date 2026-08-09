@@ -3,6 +3,7 @@ import {
   createBackup,
   listBackups,
   restoreFromBackup,
+  hasBusinessData,
   type BackupInfo,
   type BackupResult,
   type RestoreResult
@@ -57,6 +58,9 @@ export function registerBackupIpc(): void {
   ipcMain.handle('backup:getCloudBackupState', (): CloudBackupState => {
     return new SettingsRepository(getDatabase()).getCloudBackupState()
   })
+
+  // Lets the scheduled cloud-backup check skip a still-empty database too.
+  ipcMain.handle('backup:hasBusinessData', (): boolean => hasBusinessData())
 }
 
 /** Give the IPC reply a moment to flush back to the renderer (so it can show

@@ -3,14 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { Card, CardHeader } from '@shared/components/Card'
-import { EmptyState } from '@shared/components/EmptyState'
 import { PageHeader } from '@shared/components/PageHeader'
 import { ScrollList } from '@shared/components/ScrollList'
 import { StatusBadge } from '@shared/components/StatusBadge'
 import { SummaryCard } from '@shared/components/SummaryCard'
 import { ActivityFeedItem } from '@shared/components/ActivityFeedItem'
 import { RepairStatusActions } from '@shared/components/RepairStatusActions'
-import { RepairsIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
 import { useDataSubscription } from '@shared/lib/dataBus'
 import { RecurringReminderBanner } from './RecurringReminderBanner'
@@ -27,7 +25,7 @@ export function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [udhaarSummary, setUdhaarSummary] = useState<UdhaarSummary | null>(null)
   const [deliveries, setDeliveries] = useState<RepairWithCustomer[] | null>(null)
-  const [recentRepairs, setRecentRepairs] = useState<RepairWithCustomer[] | null>(null)
+  const [needingAction, setNeedingAction] = useState<RepairWithCustomer[] | null>(null)
   const [activity, setActivity] = useState<ActivityLogRow[] | null>(null)
 
   const refreshUdhaarSummary = () => {
@@ -44,7 +42,7 @@ export function DashboardPage() {
   const loadAll = () => {
     window.api.dashboard.getSummary().then(setSummary)
     window.api.dashboard.getTodaysDeliveries().then(setDeliveries)
-    window.api.dashboard.getRecentRepairs(8).then(setRecentRepairs)
+    window.api.dashboard.getRepairsNeedingAction(8).then(setNeedingAction)
     window.api.listActivity({ limit: 12 }).then(setActivity)
     refreshUdhaarSummary()
   }
@@ -59,7 +57,7 @@ export function DashboardPage() {
   const handleUdhaarChanged = () => {
     refreshUdhaarSummary()
     window.api.dashboard.getSummary().then(setSummary)
-    window.api.dashboard.getRecentRepairs(8).then(setRecentRepairs)
+    window.api.dashboard.getRepairsNeedingAction(8).then(setNeedingAction)
   }
 
   // Part E: any business write anywhere in the app refreshes every dashboard
@@ -97,7 +95,13 @@ export function DashboardPage() {
         ?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r))
         .filter((r) => r.status !== 'delivered' && r.status !== 'cancelled') ?? current
     )
-    setRecentRepairs((current) => current?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)) ?? current)
+    // Same treatment as Today's Deliveries: patch the row, then drop it once it
+    // no longer needs action (delivered/cancelled) so it leaves the list at once.
+    setNeedingAction((current) =>
+      current
+        ?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r))
+        .filter((r) => r.status !== 'delivered' && r.status !== 'cancelled') ?? current
+    )
     window.api.dashboard.getSummary().then(setSummary)
     // Delivering an unpaid repair from a dashboard row can create a linked
     // receivable udhaar (the "track as udhaar?" prompt), so keep Total
@@ -244,22 +248,29 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 gap-lg lg:grid-cols-3">
         <Card padding="none" className="lg:col-span-2">
           <CardHeader>
-            <BilingualText text={dictionary.dashboard.recentRepairs} as="div" size="lg" />
+            <BilingualText text={dictionary.dashboard.repairsNeedingAction} as="div" size="lg" />
             <Button variant="ghost" size="sm" onClick={() => navigate('/repairs')}>
               <BilingualText text={dictionary.dashboard.viewAll} size="xs" align="center" />
             </Button>
           </CardHeader>
-          {recentRepairs === null ? (
+          {needingAction === null ? (
             <div className="p-lg">
               <BilingualText text={dictionary.common.loading} size="sm" className="text-ink-muted" />
             </div>
-          ) : recentRepairs.length === 0 ? (
-            <EmptyState title={dictionary.repairs.emptyTitle} body={dictionary.repairs.emptyBody} icon={RepairsIcon} />
+          ) : needingAction.length === 0 ? (
+            <div className="p-lg text-center">
+              <BilingualText
+                text={dictionary.dashboard.nothingNeedsAction}
+                size="sm"
+                className="items-center text-ink-muted"
+              />
+            </div>
           ) : (
             <ScrollList maxHeight="md" className="divide-y divide-border">
-              {recentRepairs.map((repair) => (
+              {needingAction.map((repair) => (
                 <div
                   key={repair.id}
+                  data-testid="needing-action-row"
                   onClick={() => navigate(`/repairs/${repair.id}`)}
                   className="flex cursor-pointer items-center justify-between gap-md px-lg py-md transition-colors hover:bg-surface-raised"
                 >

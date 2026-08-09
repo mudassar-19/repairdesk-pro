@@ -146,8 +146,8 @@ const api = {
       ipcRenderer.invoke('dashboard:getTodaysDeliveries'),
     getOverdueDeliveries: (): Promise<RepairWithCustomer[]> =>
       ipcRenderer.invoke('dashboard:getOverdueDeliveries'),
-    getRecentRepairs: (limit: number): Promise<RepairWithCustomer[]> =>
-      ipcRenderer.invoke('dashboard:getRecentRepairs', limit)
+    getRepairsNeedingAction: (limit: number): Promise<RepairWithCustomer[]> =>
+      ipcRenderer.invoke('dashboard:getRepairsNeedingAction', limit)
   },
   payments: {
     findByRepairId: (repairId: string): Promise<Payment[]> =>
@@ -222,7 +222,8 @@ const api = {
     chooseDirectory: (): Promise<string | null> => ipcRenderer.invoke('backup:chooseDirectory'),
     chooseRestoreFile: (): Promise<string | null> => ipcRenderer.invoke('backup:chooseRestoreFile'),
     restore: (filePath: string): Promise<RestoreResult> => ipcRenderer.invoke('backup:restore', filePath),
-    getCloudBackupState: (): Promise<CloudBackupState> => ipcRenderer.invoke('backup:getCloudBackupState')
+    getCloudBackupState: (): Promise<CloudBackupState> => ipcRenderer.invoke('backup:getCloudBackupState'),
+    hasBusinessData: (): Promise<boolean> => ipcRenderer.invoke('backup:hasBusinessData')
   },
   googleDrive: {
     connect: (): Promise<ConnectResult> => ipcRenderer.invoke('googleDrive:connect'),

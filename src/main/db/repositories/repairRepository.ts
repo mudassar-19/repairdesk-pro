@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, count, desc, eq, gte, like, lt, lte, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, like, lt, lte, notInArray, or, sql } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm/utils'
 import type { Db } from '../client'
 import { repairs, customers, payments, type RepairStatus, type RepairPriority } from '../schema'
@@ -231,14 +231,23 @@ export class RepairRepository extends BaseRepository {
       .all()
   }
 
-  /** Last N repairs created, for the Dashboard's Recent Repairs list — sorted and limited in SQL, not in JS. */
-  findRecentWithCustomer(limit: number): RepairWithCustomer[] {
+  /**
+   * The Dashboard's "Repairs Needing Action" list — only repairs still awaiting
+   * the owner's action (pending/completed; delivered and cancelled are done and
+   * excluded), ordered by estimatedDeliveryDate ascending so the most overdue /
+   * soonest-due hand-overs sit at the top. estimatedDeliveryDate is a plain
+   * 'YYYY-MM-DD' string, so ascending string order IS chronological. Repairs
+   * with no delivery date set sort LAST (`… is null` yields 1 after 0), since
+   * they carry no time pressure; newest-created breaks ties. Sorted/limited in
+   * SQL, not in JS.
+   */
+  findNeedingActionWithCustomer(limit: number): RepairWithCustomer[] {
     return this.db
       .select({ ...getTableColumns(repairs), customerName: customers.name, customerPhone: customers.phone })
       .from(repairs)
       .innerJoin(customers, eq(repairs.customerId, customers.id))
-      .where(eq(repairs.isDeleted, false))
-      .orderBy(desc(repairs.createdAt))
+      .where(and(eq(repairs.isDeleted, false), notInArray(repairs.status, ['delivered', 'cancelled'])))
+      .orderBy(sql`${repairs.estimatedDeliveryDate} is null`, asc(repairs.estimatedDeliveryDate), desc(repairs.createdAt))
       .limit(limit)
       .all()
   }

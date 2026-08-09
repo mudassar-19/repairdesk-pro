@@ -35,6 +35,26 @@ export interface RestoreResult {
 /** Tables that must be present for a file to be recognized as a RepairDex Pro database. */
 const REQUIRED_TABLES = ['customers', 'repairs', 'payments', 'expenses', 'activity_log']
 
+/**
+ * Core business tables. If ALL of these are empty there is nothing worth
+ * backing up yet — deliberately excludes settings / activity_log / health_check,
+ * which the app writes on its own (including the backup's own log entry), so a
+ * fresh install still reads as "no data".
+ */
+const BUSINESS_TABLES = ['customers', 'repairs', 'payments', 'expenses', 'udhaar', 'udhaar_settlements'] as const
+
+/**
+ * True once the shop has any real records worth protecting. AUTOMATIC and
+ * scheduled backups gate on this so a brand-new, empty install never creates a
+ * meaningless backup of an empty database — the first real backup happens only
+ * once there is actual data. Manual "Backup Now" (local or cloud) is
+ * intentionally NOT gated: that's an explicit user action.
+ */
+export function hasBusinessData(): boolean {
+  const client = getDatabase().$client
+  return BUSINESS_TABLES.some((table) => client.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get() !== undefined)
+}
+
 const AUTO_BACKUP_STATE_KEY = 'backup.autoState'
 
 const FREQUENCY_MS: Record<'daily' | 'weekly', number> = {
@@ -230,6 +250,11 @@ export function pruneAutoBackups(keep?: number): void {
  * frequency (Daily/Weekly, Phase 15 Settings), not a hardcoded constant.
  */
 export async function maybeRunAutomaticBackup(): Promise<void> {
+  // Never back up a brand-new, empty database — a fresh install shouldn't
+  // create a meaningless backup. The first automatic backup waits until there
+  // is real business data to protect.
+  if (!hasBusinessData()) return
+
   const settingsRepo = new SettingsRepository(getDatabase())
   const { frequency } = settingsRepo.getBackupSettings()
   const state = settingsRepo.get<{ lastAutoBackupAt: string }>(AUTO_BACKUP_STATE_KEY)

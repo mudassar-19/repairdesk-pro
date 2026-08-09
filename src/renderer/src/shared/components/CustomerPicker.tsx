@@ -117,6 +117,22 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
               className="w-full text-sm text-ink outline-none"
             />
           </label>
+          {/* Persistent "Create New Customer" — pinned right under the search input,
+              never buried at the bottom of the (potentially long) results list, so it
+              stays one tap away no matter how many customers exist. startCreate carries
+              the typed query into the new-customer form (into Phone if it looks like a
+              number, otherwise into Name). */}
+          <button
+            type="button"
+            data-testid="create-new-customer"
+            onClick={startCreate}
+            className="flex w-full items-center gap-2 border-b border-border px-sm py-sm text-left text-primary transition-colors hover:bg-primary/5"
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              +
+            </span>
+            <BilingualText text={dictionary.customers.createNew} size="sm" />
+          </button>
           <div className="max-h-48 overflow-y-auto">
             {results.map((customer) => (
               <button
@@ -134,16 +150,6 @@ export function CustomerPicker({ value, onSelect, autoFocus }: CustomerPickerPro
                 <BilingualText text={dictionary.customers.noMatches} size="sm" className="text-ink-muted" />
               </div>
             )}
-            <button
-              type="button"
-              onClick={startCreate}
-              className="flex w-full items-center gap-2 border-t border-border px-sm py-sm text-left text-primary transition-colors hover:bg-primary/5"
-            >
-              <span aria-hidden="true" className="text-base leading-none">
-                +
-              </span>
-              <BilingualText text={dictionary.customers.createNew} size="sm" />
-            </button>
           </div>
         </>
       ) : (
