@@ -2,6 +2,7 @@ import { and, count, desc, eq, gte, sql, type AnyColumn } from 'drizzle-orm'
 import type { Db } from '../client'
 import { repairs, payments, customers } from '../schema'
 import { RepairRepository } from './repairRepository'
+import { activeRepairPaymentCondition } from './paymentAggregation'
 
 export type TimeSeriesGranularity = 'day' | 'month'
 export interface TimeSeriesPoint {
@@ -61,10 +62,13 @@ export class AnalyticsRepository {
     const { keys, dateOnlyFrom } = this.buildBuckets(granularity)
     const bucketExpr = this.bucketExpr(granularity, payments.paymentDate, false)
 
+    // Joins repairs (via the NOT NULL repairId FK) so cancelled/soft-deleted
+    // repairs' payments are excluded from the Revenue Trend, matching the Dashboard.
     const rows = this.db
       .select({ bucket: bucketExpr, value: sql<number>`coalesce(sum(${payments.amount}), 0)` })
       .from(payments)
-      .where(and(eq(payments.isDeleted, false), gte(payments.paymentDate, dateOnlyFrom)))
+      .innerJoin(repairs, eq(payments.repairId, repairs.id))
+      .where(and(eq(payments.isDeleted, false), activeRepairPaymentCondition(), gte(payments.paymentDate, dateOnlyFrom)))
       .groupBy(bucketExpr)
       .all()
 
@@ -92,7 +96,7 @@ export class AnalyticsRepository {
       })
       .from(payments)
       .innerJoin(repairs, eq(payments.repairId, repairs.id))
-      .where(and(eq(payments.isDeleted, false), gte(payments.paymentDate, dateOnlyFrom)))
+      .where(and(eq(payments.isDeleted, false), activeRepairPaymentCondition(), gte(payments.paymentDate, dateOnlyFrom)))
       .groupBy(bucketExpr)
       .all()
 
@@ -181,7 +185,8 @@ export class AnalyticsRepository {
       .from(payments)
       .innerJoin(repairs, eq(payments.repairId, repairs.id))
       .innerJoin(customers, eq(repairs.customerId, customers.id))
-      .where(and(eq(payments.isDeleted, false), eq(repairs.isDeleted, false), eq(customers.isDeleted, false)))
+      // activeRepairPaymentCondition adds the cancelled-repair exclusion on top of isDeleted.
+      .where(and(eq(payments.isDeleted, false), activeRepairPaymentCondition(), eq(customers.isDeleted, false)))
       .groupBy(customers.id)
       .orderBy(desc(sql`sum(${payments.amount})`))
       .limit(limit)

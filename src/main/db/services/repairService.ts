@@ -76,3 +76,47 @@ export function createRepair(db: AppDatabase, input: NewRepairInput): Repair {
   assertValidRepairInput(input)
   return db.transaction((tx) => createRepairTx(tx, input))
 }
+
+export interface CancelRepairResult {
+  repair: Repair
+  /**
+   * Sum of the repair's active payments at cancel time — the money that stops
+   * counting as revenue/profit the moment status becomes 'cancelled'. Returned
+   * so the caller can write a precise audit-trail entry ("Rs. X reversed from
+   * revenue"). Payment rows are deliberately NOT deleted: they remain for the
+   * audit trail and the Payments-page "Cancelled" badge; the reversal is purely
+   * a reporting effect enforced by activeRepairPaymentCondition.
+   */
+  reversedAmount: number
+}
+
+/**
+ * The single, canonical way to cancel a repair — used by every surface
+ * (Repair Detail, Dashboard rows, Repairs list, POS) via ipc/repairs.ts. This
+ * is the counterpart to the removed hard/soft-delete: a financial record is
+ * never destroyed, it's moved to the terminal 'cancelled' state, which reverses
+ * its revenue/profit impact everywhere at once (see paymentAggregation).
+ *
+ * Wrapped in a transaction so reading the reversed amount and flipping the
+ * status can't interleave with a concurrent payment write. RepairRepository.update
+ * enforces the delivered/cancelled status lock inside the same transaction, so a
+ * delivered (or already-cancelled) repair can never be cancelled here — which is
+ * also why a repair delivered on credit (and thus locked with a linked Udhaar)
+ * can never reach this path.
+ */
+export function cancelRepair(db: AppDatabase, id: string): CancelRepairResult {
+  return db.transaction((tx) => {
+    const repairRepo = new RepairRepository(tx)
+    const existing = repairRepo.findById(id)
+    if (!existing) throw new Error(`Repair ${id} not found`)
+    if (existing.status === 'cancelled') throw new Error(`Repair ${id} is already cancelled`)
+    if (existing.status === 'delivered') throw new Error(`Repair ${id} is delivered and cannot be cancelled`)
+
+    const paymentRepo = new PaymentRepository(tx)
+    const reversedAmount = paymentRepo.findByRepairId(id).reduce((sum, payment) => sum + payment.amount, 0)
+
+    const repair = repairRepo.update(id, { status: 'cancelled' })
+    if (!repair) throw new Error(`Repair ${id} not found`)
+    return { repair, reversedAmount }
+  })
+}

@@ -4,6 +4,7 @@ import { getTableColumns } from 'drizzle-orm/utils'
 import type { Db } from '../client'
 import { repairs, customers, payments, type RepairStatus, type RepairPriority } from '../schema'
 import { BaseRepository } from './baseRepository'
+import { activeRepairPaymentCondition } from './paymentAggregation'
 
 export type Repair = typeof repairs.$inferSelect
 export type RepairWithCustomer = Repair & { customerName: string; customerPhone: string }
@@ -294,7 +295,16 @@ export class RepairRepository extends BaseRepository {
       })
       .from(payments)
       .innerJoin(repairs, eq(payments.repairId, repairs.id))
-      .where(and(eq(payments.isDeleted, false), gte(payments.paymentDate, dateFrom), lte(payments.paymentDate, dateTo)))
+      // activeRepairPaymentCondition excludes cancelled/soft-deleted repairs so
+      // realized profit reverses in lockstep with revenue when a repair is cancelled.
+      .where(
+        and(
+          eq(payments.isDeleted, false),
+          activeRepairPaymentCondition(),
+          gte(payments.paymentDate, dateFrom),
+          lte(payments.paymentDate, dateTo)
+        )
+      )
       .get()
     return row?.total ?? 0
   }

@@ -326,6 +326,10 @@ export const dictionary = {
       en: 'The booking advance is fixed. To record more money, use Record Payment.',
       ur: 'بکنگ ایڈوانس مقرر ہے۔ مزید رقم کے لیے ادائیگی درج کریں استعمال کریں۔'
     },
+    priceBelowPaidHint: {
+      en: 'New Total Price is below the amount already paid — this leaves an overpayment (credit) owed back to the customer. Refund it manually if that is not intended.',
+      ur: 'نئی کل قیمت پہلے سے ادا کی گئی رقم سے کم ہے — اس سے گاہک کو واپس کرنے کے لیے زائد رقم (کریڈٹ) بن جائے گی۔ اگر یہ ارادہ نہیں تو رقم دستی واپس کریں۔'
+    },
     accessories: { en: 'Accessories', ur: 'لوازمات' },
     imei: { en: 'IMEI', ur: 'آئی ایم ای آئی' },
     estimatedDeliveryDate: { en: 'Estimated Delivery Date', ur: 'متوقع ڈیلیوری تاریخ' },
@@ -358,6 +362,12 @@ export const dictionary = {
     confirmDeliver: { en: 'Confirm & Deliver', ur: 'تصدیق و ڈیلیور' },
     revertToPending: { en: 'Revert to Pending', ur: 'زیر التواء پر واپس کریں' },
     cancelOrder: { en: 'Cancel Order', ur: 'آرڈر منسوخ کریں' },
+    cancelOrderConfirmTitle: { en: 'Cancel this repair order?', ur: 'کیا اس مرمت آرڈر کو منسوخ کریں؟' },
+    cancelOrderConfirmBody: {
+      en: 'The order moves to Cancelled (final). Any payments recorded against it stop counting as revenue and profit. This cannot be undone.',
+      ur: 'آرڈر منسوخ (حتمی) ہو جائے گا۔ اس پر درج کوئی بھی ادائیگی آمدنی و منافع میں شمار ہونا بند ہو جائے گی۔ اسے واپس نہیں کیا جا سکتا۔'
+    },
+    keepOrder: { en: 'Keep Order', ur: 'آرڈر رکھیں' },
     statusLocked: { en: 'This repair is locked — no further changes allowed', ur: 'یہ مرمت مقفل ہے — مزید تبدیلی ممکن نہیں' },
     printReceipt: { en: 'Print Receipt', ur: 'رسید پرنٹ کریں' },
     recordPayment: { en: 'Record Payment', ur: 'ادائیگی درج کریں' },
@@ -418,7 +428,12 @@ export const dictionary = {
       ur: 'گاہک، فون یا ڈیوائس سے تلاش کریں'
     },
     allTypes: { en: 'All Types', ur: 'تمام اقسام' },
-    runningTotal: { en: 'Total', ur: 'مجموعی رقم' },
+    runningTotal: { en: 'Total (active)', ur: 'مجموعی رقم (فعال)' },
+    cancelledBadge: { en: 'Cancelled', ur: 'منسوخ شدہ' },
+    cancelledHint: {
+      en: 'This repair was cancelled — this payment no longer counts as revenue.',
+      ur: 'یہ مرمت منسوخ کر دی گئی — یہ ادائیگی اب آمدنی میں شمار نہیں ہوتی۔'
+    },
     emptyBody: {
       en: 'Payments recorded against repairs will show up here.',
       ur: 'مرمتوں کے خلاف درج کی گئی ادائیگیاں یہاں نظر آئیں گی۔'
@@ -427,6 +442,9 @@ export const dictionary = {
   },
   expenses: {
     addNew: { en: 'Add Expense', ur: 'خرچہ شامل کریں' },
+    editExpense: { en: 'Edit Expense', ur: 'خرچہ ترمیم کریں' },
+    edit: { en: 'Edit', ur: 'ترمیم کریں' },
+    notFound: { en: 'Expense not found', ur: 'خرچہ نہیں ملا' },
     category: { en: 'Category', ur: 'قسم' },
     categoryRent: { en: 'Rent', ur: 'کرایہ' },
     categoryElectricity: { en: 'Electricity', ur: 'بجلی' },
@@ -455,10 +473,33 @@ export const dictionary = {
       en: 'Add your first expense to get started.',
       ur: 'شروع کرنے کے لیے اپنا پہلا خرچہ شامل کریں۔'
     },
-    noMatches: { en: 'No matching expenses', ur: 'کوئی مماثل خرچہ نہیں' }
+    noMatches: { en: 'No matching expenses', ur: 'کوئی مماثل خرچہ نہیں' },
+    actions: { en: 'Actions', ur: 'اعمال' },
+    delete: { en: 'Delete', ur: 'حذف کریں' },
+    deleteConfirmTitle: { en: 'Delete this expense?', ur: 'کیا یہ خرچہ حذف کریں؟' },
+    deleteConfirmBody: {
+      en: 'It will be removed and no longer counted in Monthly Expenses or Net Profit. This cannot be undone.',
+      ur: 'یہ ہٹا دیا جائے گا اور ماہانہ اخراجات یا خالص منافع میں شمار نہیں ہوگا۔ اسے واپس نہیں کیا جا سکتا۔'
+    },
+    keep: { en: 'Keep', ur: 'رکھیں' }
   },
   udhaar: {
     addNew: { en: 'Add Udhaar', ur: 'ادھار شامل کریں' },
+    editUdhaar: { en: 'Edit Udhaar', ur: 'ادھار ترمیم کریں' },
+    edit: { en: 'Edit', ur: 'ترمیم کریں' },
+    notFound: { en: 'Udhaar entry not found', ur: 'ادھار اندراج نہیں ملا' },
+    linkedAmountLockedHint: {
+      en: 'This entry is linked to a repair (Deliver on Credit). Its amount and person are fixed to keep the repair in sync — only the due date and notes can be changed.',
+      ur: 'یہ اندراج ایک مرمت سے منسلک ہے (اُدھار پر ڈیلیور)۔ مرمت کے ساتھ ہم آہنگی برقرار رکھنے کے لیے رقم اور شخص طے شدہ ہیں — صرف تاریخ اور نوٹس تبدیل کیے جا سکتے ہیں۔'
+    },
+    personLockedHint: {
+      en: 'Linked to a saved customer — edit the customer record to change their name or phone.',
+      ur: 'محفوظ گاہک سے منسلک — نام یا فون تبدیل کرنے کے لیے گاہک کا ریکارڈ ترمیم کریں۔'
+    },
+    amountBelowSettled: {
+      en: 'Amount cannot be less than what has already been settled.',
+      ur: 'رقم پہلے سے طے شدہ رقم سے کم نہیں ہو سکتی۔'
+    },
     receivables: { en: 'Receivables', ur: 'وصولی' },
     payables: { en: 'Payables', ur: 'قابل ادائیگی' },
     totalReceivables: { en: 'Total Receivables', ur: 'کل وصولی' },
@@ -499,6 +540,13 @@ export const dictionary = {
       ur: 'درج شدہ ادائیگیاں حتمی ہیں اور واپس نہیں لی جا سکتیں۔'
     },
     extendDueDate: { en: 'Extend Due Date', ur: 'تاریخ بڑھائیں' },
+    delete: { en: 'Delete', ur: 'حذف کریں' },
+    deleteConfirmTitle: { en: 'Delete this Udhaar entry?', ur: 'کیا یہ ادھار اندراج حذف کریں؟' },
+    deleteConfirmBody: {
+      en: 'It will be removed and no longer counted in Total Receivables/Payables. This cannot be undone.',
+      ur: 'یہ ہٹا دیا جائے گا اور کل وصولی/قابل ادائیگی میں شمار نہیں ہوگا۔ اسے واپس نہیں کیا جا سکتا۔'
+    },
+    keep: { en: 'Keep', ur: 'رکھیں' },
     emptyTitle: { en: 'No Udhaar entries yet', ur: 'ابھی کوئی ادھار درج نہیں' },
     emptyBody: {
       en: 'Track money owed to you or by you here.',

@@ -5,6 +5,7 @@ import { ActionMenu } from './ActionMenu'
 import { BilingualText } from './BilingualText'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
+import { cancelRepairWithLog } from '@shared/lib/cancelRepair'
 import { repairStatusLabel, isRepairStatusLocked, type RepairStatus } from '@shared/lib/repairStatus'
 import { DeliverOnCreditModal } from '@features/repairs/DeliverOnCreditModal'
 import type { Repair } from '../../../../main/db/repositories/repairRepository'
@@ -17,6 +18,13 @@ export interface RepairStatusActionsProps {
   compact?: boolean
   /** List rows wrap this in their own onClick-to-navigate handler — stops that click from firing when a status button is pressed. */
   stopRowClick?: boolean
+  /**
+   * Whether Cancel Order appears in this component's "more actions" menu.
+   * Defaults true (Dashboard rows, Repairs list, POS). RepairDetailPage passes
+   * false because it renders Cancel Order as its own prominent, first-class
+   * button rather than burying it in a menu.
+   */
+  showCancel?: boolean
 }
 
 /**
@@ -45,7 +53,7 @@ export interface RepairStatusActionsProps {
  * Both replace the old "flip status, then optionally track udhaar" prompt, so
  * money can never leave the shop unrecorded at the delivery moment.
  */
-export function RepairStatusActions({ repair, onChanged, compact = false, stopRowClick = false }: RepairStatusActionsProps) {
+export function RepairStatusActions({ repair, onChanged, compact = false, stopRowClick = false, showCancel = true }: RepairStatusActionsProps) {
   const textSize = compact ? 'xs' : 'sm'
   const buttonSize = compact ? 'sm' : 'md'
   const [creditModalOpen, setCreditModalOpen] = useState(false)
@@ -125,19 +133,29 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
 
   if (isRepairStatusLocked(repair.status)) return null
 
+  // Cancel goes through the shared cancelRepairWithLog helper (repairs:cancel →
+  // cancelRepair), NOT a plain status flip, so the revenue/profit reversal and
+  // its precise audit-trail entry happen identically on every surface.
+  const handleCancel = () =>
+    runGuarded(async () => {
+      const { repair: updated } = await cancelRepairWithLog(repair.id)
+      onChanged(updated)
+    })
+
   const cancelItem = {
     label: dictionary.repairs.cancelOrder,
     danger: true,
-    onClick: () => void changeStatus('cancelled')()
+    onClick: () => void handleCancel()
   }
 
   if (repair.status === 'pending') {
+    const menuItems = showCancel ? [cancelItem] : []
     return (
       <div className="flex items-center gap-xs">
         <Button variant="primary" size={buttonSize} disabled={busy} onClick={handleClick(changeStatus('completed'))}>
           <BilingualText text={dictionary.repairs.markCompleted} size={textSize} align="center" />
         </Button>
-        <ActionMenu items={[cancelItem]} stopRowClick={stopRowClick} />
+        {menuItems.length > 0 && <ActionMenu items={menuItems} stopRowClick={stopRowClick} />}
       </div>
     )
   }
@@ -161,7 +179,7 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
       </Button>
       {compact ? (
         <ActionMenu
-          items={[...(creditItem ? [creditItem] : []), revertItem, cancelItem]}
+          items={[...(creditItem ? [creditItem] : []), revertItem, ...(showCancel ? [cancelItem] : [])]}
           stopRowClick={stopRowClick}
         />
       ) : (
@@ -174,7 +192,7 @@ export function RepairStatusActions({ repair, onChanged, compact = false, stopRo
           <Button variant="secondary" size={buttonSize} disabled={busy} onClick={handleClick(changeStatus('pending'))}>
             <BilingualText text={dictionary.repairs.revertToPending} size={textSize} align="center" />
           </Button>
-          <ActionMenu items={[cancelItem]} stopRowClick={stopRowClick} />
+          {showCancel && <ActionMenu items={[cancelItem]} stopRowClick={stopRowClick} />}
         </>
       )}
 

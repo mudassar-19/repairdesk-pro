@@ -39,7 +39,12 @@ export function PaymentsPage() {
 
   const { results, loading } = useAllPaymentsSearch({ search, type, datePreset, customFrom, customTo })
   const hasActiveFilters = Boolean(search) || type !== 'all' || datePreset !== 'all'
-  const total = results.reduce((sum, payment) => sum + payment.amount, 0)
+  // A payment on a cancelled (or soft-deleted) repair is no longer active
+  // revenue — matches activeRepairPaymentCondition on the backend. The row
+  // stays visible with a "Cancelled" badge, but is excluded from the total.
+  const isPaymentCancelled = (payment: (typeof results)[number]): boolean =>
+    payment.repairStatus === 'cancelled' || payment.repairIsDeleted
+  const total = results.reduce((sum, payment) => (isPaymentCancelled(payment) ? sum : sum + payment.amount), 0)
 
   return (
     <div className="flex flex-1 flex-col">
@@ -141,7 +146,9 @@ export function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {results.map((payment) => (
+              {results.map((payment) => {
+                const cancelled = isPaymentCancelled(payment)
+                return (
                 <tr
                   key={payment.id}
                   onClick={() => navigate(`/repairs/${payment.repairId}`)}
@@ -168,16 +175,27 @@ export function PaymentsPage() {
                               .replace('{m}', String(payment.repairPaymentCount))}
                           </span>
                         )}
+                        {cancelled && (
+                          <span
+                            title={dictionary.payments.cancelledHint.en}
+                            className="rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-medium text-danger"
+                          >
+                            {dictionary.payments.cancelledBadge.en}
+                          </span>
+                        )}
                       </span>
                     </div>
                   </td>
                   <td className="px-lg py-md text-sm text-ink-muted">{paymentTypeLabel[payment.type].en}</td>
-                  <td className="px-lg py-md text-right text-sm font-medium tabular-nums text-ink">
+                  <td
+                    className={`px-lg py-md text-right text-sm font-medium tabular-nums ${cancelled ? 'text-ink-muted line-through' : 'text-ink'}`}
+                  >
                     {formatCurrency(payment.amount, currency)}
                   </td>
                   <td className="max-w-[200px] truncate px-lg py-md text-sm text-ink-muted">{payment.notes ?? '—'}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </Card>

@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm/utils'
 import type { Db } from '../client'
-import { payments, repairs, customers, type PaymentType } from '../schema'
+import { payments, repairs, customers, type PaymentType, type RepairStatus } from '../schema'
 import { BaseRepository } from './baseRepository'
+import { activeRepairPaymentCondition } from './paymentAggregation'
 
 export type Payment = typeof payments.$inferSelect
 export type PaymentWithContext = Payment & {
@@ -15,6 +16,10 @@ export type PaymentWithContext = Payment & {
   repairPaymentCount: number
   /** This payment's chronological position among its repair's payments, 1-based. */
   repairPaymentIndex: number
+  /** Parent repair's status — the Payments ledger badges 'cancelled' rows and excludes them from its active total. */
+  repairStatus: RepairStatus
+  /** Whether the parent repair is soft-deleted — treated like cancelled for badging/total purposes. */
+  repairIsDeleted: boolean
 }
 
 export interface NewPaymentInput {
@@ -117,6 +122,12 @@ export class PaymentRepository extends BaseRepository {
         customerPhone: customers.phone,
         deviceBrand: repairs.deviceBrand,
         deviceModel: repairs.deviceModel,
+        // Surfaced so the ledger can badge cancelled/removed repairs' payments
+        // and drop them from its active total, rather than showing them as
+        // normal live revenue (point 6). The rows are intentionally still
+        // returned — the money must not silently disappear from the audit trail.
+        repairStatus: repairs.status,
+        repairIsDeleted: repairs.isDeleted,
         // Correlated subqueries (not window functions) so the count/index cover
         // ALL of the repair's payments regardless of the active list filters —
         // "2 of 3" stays truthful even when a date/type filter hides siblings.
@@ -139,10 +150,22 @@ export class PaymentRepository extends BaseRepository {
    * lexicographically *before* "2026-08-02T00:00:00.000Z".
    */
   sumByDateRange(dateFrom: string, dateTo: string): number {
+    // Joins repairs so a cancelled/soft-deleted repair's payments are excluded
+    // from Revenue (see activeRepairPaymentCondition — the root-cause fix for
+    // phantom revenue). payments.repairId is a NOT NULL foreign key, so the
+    // inner join never drops a legitimate payment.
     const row = this.db
       .select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` })
       .from(payments)
-      .where(and(eq(payments.isDeleted, false), gte(payments.paymentDate, dateFrom), lte(payments.paymentDate, dateTo)))
+      .innerJoin(repairs, eq(payments.repairId, repairs.id))
+      .where(
+        and(
+          eq(payments.isDeleted, false),
+          activeRepairPaymentCondition(),
+          gte(payments.paymentDate, dateFrom),
+          lte(payments.paymentDate, dateTo)
+        )
+      )
       .get()
     return row?.total ?? 0
   }
@@ -152,7 +175,9 @@ export class PaymentRepository extends BaseRepository {
     const customerRepairIds = this.db
       .select({ id: repairs.id })
       .from(repairs)
-      .where(and(eq(repairs.customerId, customerId), eq(repairs.isDeleted, false)))
+      // Excludes cancelled repairs too (not just soft-deleted), so a customer's
+      // "Total Spent" reverses when one of their repairs is cancelled.
+      .where(and(eq(repairs.customerId, customerId), activeRepairPaymentCondition()))
 
     const row = this.db
       .select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` })

@@ -8,7 +8,7 @@ import {
   type NewRepairInput,
   type UpdateRepairInput
 } from '../db/repositories/repairRepository'
-import { createRepair } from '../db/services/repairService'
+import { createRepair, cancelRepair, type CancelRepairResult } from '../db/services/repairService'
 import {
   deliverWithFullPayment,
   deliverOnCredit,
@@ -50,7 +50,10 @@ export function registerRepairsIpc(): void {
     (_event, id: string, patch: UpdateRepairInput): Repair | null => repo().update(id, patch)
   )
 
-  ipcMain.handle('repairs:softDelete', (_event, id: string): Repair | null => repo().softDelete(id))
+  // Repairs can no longer be deleted (a financial record must never vanish).
+  // Cancel Order is the only removal path: it moves the repair to the terminal
+  // 'cancelled' state and reverses its revenue/profit impact — see cancelRepair.
+  ipcMain.handle('repairs:cancel', (_event, id: string): CancelRepairResult => cancelRepair(getDatabase(), id))
 
   // Atomic delivery flows (Part A): full-payment-at-pickup, or split part
   // payment + linked receivable udhaar for the credit case.

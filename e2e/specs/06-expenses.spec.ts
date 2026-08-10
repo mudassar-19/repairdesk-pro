@@ -47,4 +47,20 @@ test.describe.serial('Expenses', () => {
     await expect(window.getByText(RECURRING_DESC)).toBeVisible({ timeout: 10_000 })
     await shoot(window, '06-expenses-after-recurring-create')
   })
+
+  test('deletes an expense via the newly-wired Delete action', async () => {
+    // Target the uniquely-named recurring expense (the plain one is a substring
+    // of it, so matching on DESCRIPTION alone would be ambiguous).
+    const RECURRING_DESC = `${DESCRIPTION} Recurring`
+    const row = window.locator('tr', { hasText: RECURRING_DESC })
+    await expect(row).toBeVisible()
+    await row.getByRole('button', { name: 'Delete' }).click()
+    // Confirm in the dialog (its confirm button is also "Delete").
+    await window.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
+    // The row disappears (list refreshes via the data bus)…
+    await expect(window.locator('tr', { hasText: RECURRING_DESC })).toHaveCount(0, { timeout: 10_000 })
+    // …while the other expense is untouched.
+    await expect(window.getByText(DESCRIPTION).first()).toBeVisible()
+    await shoot(window, '06-expenses-after-delete')
+  })
 })

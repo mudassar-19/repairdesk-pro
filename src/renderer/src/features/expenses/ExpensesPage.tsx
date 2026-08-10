@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { Card } from '@shared/components/Card'
+import { ConfirmDialog } from '@shared/components/ConfirmDialog'
 import { EmptyState } from '@shared/components/EmptyState'
 import { PageHeader } from '@shared/components/PageHeader'
 import { ExpensesIcon } from '@shared/components/icons'
 import { dictionary } from '@shared/i18n'
+import { logActivity } from '@shared/lib/activityLog'
 import { useExpenseSearch } from '@shared/hooks/useExpenseSearch'
 import { expenseCategoryValues, expenseCategoryLabel, categoryLabel } from '@shared/lib/expenseCategory'
 import type { DateRangePreset } from '@shared/lib/dateRangePresets'
+import type { Expense } from '../../../../main/db/repositories/expenseRepository'
 
 const selectClass =
   'rounded-md border border-border bg-surface px-sm py-sm text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20'
@@ -21,9 +24,30 @@ export function ExpensesPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
+  const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null)
+
   const { results, loading } = useExpenseSearch({ category, datePreset, customFrom, customTo })
   const hasActiveFilters = category !== 'all' || datePreset !== 'all'
   const total = results.reduce((sum, expense) => sum + expense.amount, 0)
+
+  // Soft-deletes the expense (reversing its Monthly Expenses / Net Profit impact
+  // — expenses are self-contained, so the aggregate already filters isDeleted).
+  // The list + Dashboard refresh automatically via the data bus (softDelete is a
+  // mutate channel emitting 'expenses').
+  const handleDelete = async () => {
+    if (!deletingExpense) return
+    const deleted = await window.api.expenses.softDelete(deletingExpense.id)
+    setDeletingExpense(null)
+    if (deleted) {
+      logActivity({
+        actionType: 'delete',
+        entityType: 'expense',
+        entityId: deleted.id,
+        description: `Expense deleted — ${categoryLabel(deleted.category)} (${deleted.amount.toFixed(2)})`,
+        metadata: { category: deleted.category, amount: deleted.amount }
+      })
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -124,6 +148,7 @@ export function ExpensesPage() {
                 <th className="px-lg py-sm">
                   <BilingualText text={dictionary.expenses.description} size="sm" className="text-ink-muted" />
                 </th>
+                <th className="px-lg py-sm" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -135,12 +160,41 @@ export function ExpensesPage() {
                   </td>
                   <td className="px-lg py-md text-sm text-ink-muted">{expense.expenseDate}</td>
                   <td className="px-lg py-md text-sm text-ink-muted">{expense.description ?? '—'}</td>
+                  <td className="whitespace-nowrap px-lg py-md text-right">
+                    <div className="flex justify-end gap-sm">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/expenses/${expense.id}/edit`)}
+                        className="rounded-md border border-border px-md py-sm transition-colors hover:bg-surface-raised"
+                      >
+                        <BilingualText text={dictionary.expenses.edit} size="xs" align="center" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingExpense(expense)}
+                        className="rounded-md bg-danger/10 px-md py-sm text-danger transition-colors hover:bg-danger/20"
+                      >
+                        <BilingualText text={dictionary.expenses.delete} size="xs" align="center" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={deletingExpense !== null}
+        title={dictionary.expenses.deleteConfirmTitle}
+        body={dictionary.expenses.deleteConfirmBody}
+        confirmLabel={dictionary.expenses.delete}
+        cancelLabel={dictionary.expenses.keep}
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingExpense(null)}
+      />
     </div>
   )
 }

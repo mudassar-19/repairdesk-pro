@@ -25,6 +25,7 @@ import type {
 } from '../main/db/repositories/repairRepository'
 import type { Payment, PaymentWithContext, PaymentListFilters, NewPaymentInput } from '../main/db/repositories/paymentRepository'
 import type { RecordPaymentResult } from '../main/db/services/paymentService'
+import type { CancelRepairResult } from '../main/db/services/repairService'
 import type {
   DeliverResult,
   DeliverOnCreditInput,
@@ -138,7 +139,10 @@ const api = {
     listBrands: (): Promise<string[]> => ipcRenderer.invoke('repairs:listBrands'),
     create: mutate<[NewRepairInput], Repair>('repairs:create', ['repairs', 'payments', 'customers']),
     update: mutate<[string, UpdateRepairInput], Repair | null>('repairs:update', ['repairs', 'payments', 'customers']),
-    softDelete: mutate<[string], Repair | null>('repairs:softDelete', ['repairs', 'payments', 'customers']),
+    // Repairs are never deleted — Cancel Order is the only removal path. It
+    // reverses revenue/profit (see cancelRepair) and returns the reversed amount
+    // so the caller can log a precise audit-trail entry.
+    cancel: mutate<[string], CancelRepairResult>('repairs:cancel', ['repairs', 'payments', 'customers']),
     deliverWithFullPayment: mutate<[string], DeliverResult>('repairs:deliverWithFullPayment', ['repairs', 'payments', 'customers']),
     deliverOnCredit: mutate<[DeliverOnCreditInput], DeliverOnCreditResult>('repairs:deliverOnCredit', [
       'repairs',

@@ -92,13 +92,21 @@ test.describe.serial('Repairs', () => {
     await expect(window.getByText(NEW_CUSTOMER_NAME)).toBeVisible()
   })
 
-  test('cancels a pending repair via the more-actions menu', async () => {
-    await window.getByRole('button', { name: 'More actions' }).click()
-    await window.getByRole('menuitem', { name: 'Cancel Order' }).click()
+  test('cancels a pending repair via the prominent Cancel Order button', async () => {
+    // On the Repair Detail page, Cancel Order is a first-class button (the
+    // Delete button was removed entirely), not buried in the more-actions menu.
+    await window.getByRole('button', { name: 'Cancel Order' }).click()
+    // Confirm in the dialog (its confirm button shares the "Cancel Order" label,
+    // so scope to the dialog to disambiguate from the header button).
+    await window.getByRole('alertdialog').getByRole('button', { name: 'Cancel Order' }).click()
     await expect(window.getByText('Cancelled', { exact: true }).first()).toBeVisible({ timeout: 5_000 })
     await shoot(window, '03-repairs-cancelled')
 
     await expect(window.getByText('Change Status', { exact: true })).not.toBeVisible()
+    // Once cancelled (locked), the Cancel Order button and status menu are gone.
+    await expect(window.getByRole('button', { name: 'Cancel Order' })).not.toBeVisible()
     await expect(window.getByRole('button', { name: 'More actions' })).not.toBeVisible()
+    // The Delete button must no longer exist anywhere on the detail page.
+    await expect(window.getByRole('button', { name: 'Delete' })).toHaveCount(0)
   })
 })

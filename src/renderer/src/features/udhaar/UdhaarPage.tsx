@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { Card } from '@shared/components/Card'
+import { ConfirmDialog } from '@shared/components/ConfirmDialog'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExtendDateControl } from '@shared/components/ExtendDateControl'
 import { PageHeader } from '@shared/components/PageHeader'
@@ -36,6 +37,7 @@ export function UdhaarPage() {
   const [overdueFilter, setOverdueFilter] = useState<OverdueFilter>('all')
   const [search, setSearch] = useState('')
   const [settlingEntry, setSettlingEntry] = useState<Udhaar | null>(null)
+  const [deletingEntry, setDeletingEntry] = useState<Udhaar | null>(null)
   const [extendingId, setExtendingId] = useState<string | null>(null)
   const [totals, setTotals] = useState<{ totalReceivables: number; totalPayables: number } | null>(null)
 
@@ -68,6 +70,28 @@ export function UdhaarPage() {
           : `Udhaar due date set to ${newDate}`,
       metadata: { fromDate: previousDate, toDate: newDate, extendedByDays }
     })
+  }
+
+  // Soft-deletes an Udhaar entry, reversing its Total Receivables/Payables impact
+  // (the summary already filters isDeleted). Deletion is restricted to entries
+  // with NO settlements yet (amountSettled === 0) — see the button guard below —
+  // so this never has to unwind settled money or its mirror repair payments; it's
+  // purely for removing a mistaken entry.
+  const handleDelete = async () => {
+    if (!deletingEntry) return
+    const deleted = await window.api.udhaar.softDelete(deletingEntry.id)
+    setDeletingEntry(null)
+    if (deleted) {
+      refresh()
+      loadTotals()
+      logActivity({
+        actionType: 'delete',
+        entityType: 'udhaar',
+        entityId: deleted.id,
+        description: `Udhaar entry deleted — ${deleted.personName} (${deleted.totalAmount.toFixed(2)} ${deleted.direction})`,
+        metadata: { direction: deleted.direction, totalAmount: deleted.totalAmount }
+      })
+    }
   }
 
   const hasActiveFilters = status !== 'all' || overdueFilter !== 'all' || Boolean(search)
@@ -201,6 +225,27 @@ export function UdhaarPage() {
                             </Button>
                           </>
                         )}
+                        {/* Edit is always available — for a repair-linked entry the
+                            form allows only due date + notes (amount/person locked). */}
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/udhaar/${entry.id}/edit`)}
+                          className="rounded-md border border-border px-md py-sm transition-colors hover:bg-surface-raised"
+                        >
+                          <BilingualText text={dictionary.udhaar.edit} size="xs" align="center" />
+                        </button>
+                        {/* Delete only a mistaken entry that has no settlements yet
+                            — keeps deletion from ever having to unwind settled
+                            money or its linked mirror repair payments. */}
+                        {entry.amountSettled === 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingEntry(entry)}
+                            className="rounded-md bg-danger/10 px-md py-sm text-danger transition-colors hover:bg-danger/20"
+                          >
+                            <BilingualText text={dictionary.udhaar.delete} size="xs" align="center" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -234,6 +279,17 @@ export function UdhaarPage() {
           refresh()
           loadTotals()
         }}
+      />
+
+      <ConfirmDialog
+        open={deletingEntry !== null}
+        title={dictionary.udhaar.deleteConfirmTitle}
+        body={dictionary.udhaar.deleteConfirmBody}
+        confirmLabel={dictionary.udhaar.delete}
+        cancelLabel={dictionary.udhaar.keep}
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingEntry(null)}
       />
     </div>
   )

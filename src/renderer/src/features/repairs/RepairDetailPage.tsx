@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@shared/components/ConfirmDialog'
 import { StatusBadge } from '@shared/components/StatusBadge'
 import { RepairStatusActions } from '@shared/components/RepairStatusActions'
 import { dictionary } from '@shared/i18n'
-import { logActivity } from '@shared/lib/activityLog'
+import { cancelRepairWithLog } from '@shared/lib/cancelRepair'
 import { paymentTypeLabel } from '@shared/lib/paymentType'
 import { isRepairStatusLocked, repairPriorityLabel } from '@shared/lib/repairStatus'
 import { useDataSubscription } from '@shared/lib/dataBus'
@@ -22,7 +22,7 @@ export function RepairDetailPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [paymentHistory, setPaymentHistory] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [receiptModalOpen, setReceiptModalOpen] = useState(false)
 
@@ -53,20 +53,15 @@ export function RepairDetailPage() {
     window.api.payments.findByRepairId(id).then(setPaymentHistory)
   })
 
-  const handleDelete = async () => {
+  // Repairs are never deleted — Cancel Order is the only removal path. It moves
+  // the repair to the terminal 'cancelled' state and reverses its revenue/profit
+  // impact (see cancelRepair); the audit-trail entry is written inside
+  // cancelRepairWithLog. We stay on the page so the reversed status is visible.
+  const handleCancel = async () => {
     if (!repair) return
-    const deleted = await window.api.repairs.softDelete(repair.id)
-    setConfirmOpen(false)
-    if (deleted) {
-      logActivity({
-        actionType: 'delete',
-        
-        entityType: 'repair',
-        entityId: deleted.id,
-        description: `Repair order for ${customer?.name ?? 'customer'} deleted`
-      })
-      navigate('/repairs', { replace: true })
-    }
+    const { repair: updated } = await cancelRepairWithLog(repair.id)
+    setCancelOpen(false)
+    handleRepairChanged(updated)
   }
 
   if (loading) {
@@ -115,13 +110,18 @@ export function RepairDetailPage() {
             >
               <BilingualText text={dictionary.repairs.edit} size="sm" />
             </button>
-            <button
-              type="button"
-              onClick={() => setConfirmOpen(true)}
-              className="rounded-md bg-danger/10 px-md py-sm text-danger transition-colors hover:bg-danger/20"
-            >
-              <BilingualText text={dictionary.repairs.delete} size="sm" />
-            </button>
+            {/* Cancel Order — first-class, prominent action (replaces the removed
+                Delete button). Only shown while the repair is still active; a
+                delivered/cancelled repair is locked. Reverses revenue/profit. */}
+            {!isRepairStatusLocked(repair.status) && (
+              <button
+                type="button"
+                onClick={() => setCancelOpen(true)}
+                className="rounded-md bg-danger/10 px-md py-sm text-danger transition-colors hover:bg-danger/20"
+              >
+                <BilingualText text={dictionary.repairs.cancelOrder} size="sm" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -145,7 +145,7 @@ export function RepairDetailPage() {
         {!isRepairStatusLocked(repair.status) && (
           <div className="mb-lg rounded-lg border border-border/60 bg-surface p-lg shadow-card">
             <BilingualText text={dictionary.repairs.changeStatus} as="div" size="sm" className="mb-sm text-ink-muted" />
-            <RepairStatusActions repair={repair} onChanged={handleRepairChanged} />
+            <RepairStatusActions repair={repair} onChanged={handleRepairChanged} showCancel={false} />
           </div>
         )}
 
@@ -282,14 +282,14 @@ export function RepairDetailPage() {
       />
 
       <ConfirmDialog
-        open={confirmOpen}
-        title={dictionary.repairs.deleteConfirmTitle}
-        body={dictionary.repairs.deleteConfirmBody}
-        confirmLabel={dictionary.repairs.delete}
-        cancelLabel={dictionary.repairs.cancel}
+        open={cancelOpen}
+        title={dictionary.repairs.cancelOrderConfirmTitle}
+        body={dictionary.repairs.cancelOrderConfirmBody}
+        confirmLabel={dictionary.repairs.cancelOrder}
+        cancelLabel={dictionary.repairs.keepOrder}
         danger
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleCancel}
+        onCancel={() => setCancelOpen(false)}
       />
     </div>
   )
