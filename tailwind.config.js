@@ -52,7 +52,11 @@ module.exports = {
       },
       fontFamily: {
         sans: 'var(--font-sans)',
-        urdu: 'var(--font-urdu)'
+        urdu: 'var(--font-urdu)',
+        // Latin + Urdu in one string — for user-typed receipt header/footer
+        // text (see --font-mixed in theme.css). Keeps typed Urdu on the
+        // bundled Nastaliq font so it embeds correctly in Windows PDF export.
+        mixed: 'var(--font-mixed)'
       },
       fontSize: {
         xs: 'var(--text-xs)',
