@@ -10,6 +10,7 @@ import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { isValidMobilePhone, sanitizePhoneInput, PHONE_HELP } from '@shared/lib/phone'
 import { MAX_NOTES, MAX_SHORT_TEXT, TOO_LONG } from '@shared/lib/textLimits'
+import { formatLocalDate } from '@shared/lib/dateRangePresets'
 import type { Customer } from '../../../../main/db/repositories/customerRepository'
 import type { UdhaarDirection } from '../../../../main/db/schema'
 
@@ -26,7 +27,19 @@ const udhaarFormSchema = z.object({
     .trim()
     .min(1, 'Amount is required')
     .refine((value) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0, 'Enter a valid amount'),
-  dueDate: z.string().trim().optional(),
+  // Due date is optional, but a NEW entry can't already be past due — a due
+  // date on a fresh record only makes sense today or later. Compared as ISO
+  // YYYY-MM-DD strings, which order correctly lexicographically. (This does
+  // not touch existing entries or the Extend Due Date flow, which enforce
+  // their own "after current" rule.)
+  dueDate: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      (value) => !value || value >= formatLocalDate(new Date()),
+      'Due date cannot be in the past — pick today or a later date.'
+    ),
   notes: z.string().trim().max(MAX_NOTES, TOO_LONG(MAX_NOTES)).optional()
 })
 
@@ -188,7 +201,8 @@ export function AddUdhaarPage() {
 
           <label className="flex flex-col gap-1">
             <BilingualText text={dictionary.udhaar.dueDateOptionalField} size="sm" className="text-ink-muted" />
-            <input type="date" className={inputClass} {...register('dueDate')} />
+            <input type="date" min={formatLocalDate(new Date())} className={inputClass} {...register('dueDate')} />
+            {errors.dueDate && <span className="text-xs text-danger">{errors.dueDate.message}</span>}
           </label>
         </div>
 

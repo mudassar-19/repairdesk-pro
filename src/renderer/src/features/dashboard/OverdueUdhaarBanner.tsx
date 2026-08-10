@@ -5,7 +5,7 @@ import { ExtendDateControl } from '@shared/components/ExtendDateControl'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { addDays, daysOverdue, daysOverdueLabel, diffDays, overdueDismissKey } from '@shared/lib/overdueReminders'
-import { udhaarStatusLabel, udhaarStatusBadgeClass } from '@shared/lib/udhaar'
+import { udhaarStatusLabel, udhaarStatusBadgeClass, udhaarDirectionLabel, udhaarDirectionBadgeClass } from '@shared/lib/udhaar'
 import { formatCurrency } from '@shared/lib/currency'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
 import { useBrandingSettings } from '@shared/hooks/useBrandingSettings'
@@ -103,9 +103,16 @@ export function OverdueUdhaarBanner({ onChanged }: OverdueUdhaarBannerProps) {
           <div key={entry.id}>
             <div className="flex flex-wrap items-center justify-between gap-md px-lg py-md">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-ink">
-                  {entry.personName} — {formatCurrency(entry.remainingBalance, currency)}
-                </p>
+                <div className="flex items-center gap-sm">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {entry.personName} — {formatCurrency(entry.remainingBalance, currency)}
+                  </p>
+                  <span
+                    className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 ${udhaarDirectionBadgeClass[entry.direction]}`}
+                  >
+                    <BilingualText text={udhaarDirectionLabel[entry.direction]} size="xs" align="center" />
+                  </span>
+                </div>
                 <p className="mt-0.5 text-xs font-medium text-danger">
                   {daysOverdueLabel(daysOverdue(entry.dueDate!, today())).en}
                 </p>

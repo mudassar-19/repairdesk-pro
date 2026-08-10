@@ -1,6 +1,6 @@
 import { dictionary } from '@shared/i18n'
 import type { BilingualString } from '@shared/i18n'
-import type { UdhaarStatus } from '../../../../main/db/schema'
+import type { UdhaarDirection, UdhaarStatus } from '../../../../main/db/schema'
 import { diffDays } from './overdueReminders'
 
 export const udhaarStatusLabel: Record<UdhaarStatus, BilingualString> = {
@@ -14,6 +14,22 @@ export const udhaarStatusBadgeClass: Record<UdhaarStatus, string> = {
   pending: 'bg-warning/10 text-warning',
   partially_settled: 'bg-primary/10 text-primary',
   settled: 'bg-success/10 text-success'
+}
+
+/** Short "which way does the money flow" label — the same wording as the Receivables/Payables tabs on the Udhaar page. */
+export const udhaarDirectionLabel: Record<UdhaarDirection, BilingualString> = {
+  receivable: dictionary.udhaar.receivables,
+  payable: dictionary.udhaar.payables
+}
+
+/**
+ * Semantic coloring for a direction badge — matches the Udhaar page's own
+ * receivable=success / payable=warning SummaryCard tones, so "owed to me" and
+ * "I owe" read the same everywhere. Reuses existing tokens, no new colors.
+ */
+export const udhaarDirectionBadgeClass: Record<UdhaarDirection, string> = {
+  receivable: 'bg-success/10 text-success',
+  payable: 'bg-warning/10 text-warning'
 }
 
 /**
