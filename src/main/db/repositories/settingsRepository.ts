@@ -16,7 +16,11 @@ import { settings } from '../schema'
 const brandingSchema = z.object({
   shopName: z.string().default('RepairDex Pro'),
   logoPath: z.string().nullable().default(null),
-  currency: z.string().default('PKR'),
+  // Currency symbol/code is short by nature ("Rs.", "₨", "PKR", "USD"). Bounded
+  // and trimmed so a nonsensical value (empty, or an enormous pasted string that
+  // would wreck receipt/amount layout) can never be stored — invalid input falls
+  // back to the safe default rather than throwing.
+  currency: z.string().trim().min(1).max(8).catch('PKR').default('PKR'),
   /** Flows live into the CSS token system (theme.css's --color-primary-*) — see shared/lib/brandColor.ts. */
   primaryColor: z.string().default('#0d9488'),
   address: z.string().default(''),

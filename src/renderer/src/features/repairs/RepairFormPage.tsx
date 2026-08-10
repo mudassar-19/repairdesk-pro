@@ -35,6 +35,11 @@ export function RepairFormPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [customerError, setCustomerError] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  // On edit, the TOTAL already paid against this repair (advance + any recorded
+  // payments), derived from the loaded repair. Needed so the displayed Remaining
+  // Balance and the "price below paid" warning account for ALL payments, not
+  // just the (locked) booking advance. 0 on create (no payments exist yet).
+  const [amountPaid, setAmountPaid] = useState(0)
 
   const {
     register,
@@ -61,6 +66,9 @@ export function RepairFormPage() {
       }
       const customer = await window.api.customers.getById(repair.customerId)
       setSelectedCustomer(customer)
+      // repairPrice - remainingBalance == sum of all payments recorded so far
+      // (the backend keeps remainingBalance = repairPrice - Σpayments in sync).
+      setAmountPaid(repair.repairPrice - repair.remainingBalance)
       reset({
         deviceBrand: repair.deviceBrand,
         deviceModel: repair.deviceModel,
@@ -81,7 +89,16 @@ export function RepairFormPage() {
 
   const repairPrice = toNumber(watch('repairPrice'))
   const advanceAmount = toNumber(watch('advanceAmount'))
-  const remainingBalance = repairPrice - advanceAmount
+  // On edit, measure remaining against EVERYTHING already paid (amountPaid), not
+  // just the booking advance — otherwise partial payments would be invisible
+  // here and the shown balance could look positive while the real one is
+  // negative. On create, the advance is the only payment, so the two agree.
+  const paidSoFar = isEdit ? amountPaid : advanceAmount
+  const remainingBalance = repairPrice - paidSoFar
+  // Lowering the price below what's already been collected leaves the customer
+  // in credit (overpayment). Allowed (a shop may genuinely reduce a price and
+  // refund the difference), but must never happen silently — hence this warning.
+  const priceBelowPaid = repairPrice > 0 && paidSoFar > 0 && repairPrice < paidSoFar
   const costPriceValue = watch('costPrice')
   const costPrice = toNumber(costPriceValue)
   const issueValue = watch('issue') ?? ''
@@ -318,10 +335,19 @@ export function RepairFormPage() {
           </label>
           <div className="flex flex-col gap-1">
             <BilingualText text={dictionary.repairs.remainingBalance} size="sm" className="text-ink-muted" />
-            <div className="flex items-center rounded-md border border-border bg-surface-raised px-sm py-sm text-base font-medium text-ink">
+            <div
+              className={`flex items-center rounded-md border px-sm py-sm text-base font-medium ${
+                remainingBalance < 0 ? 'border-danger/40 bg-danger/10 text-danger' : 'border-border bg-surface-raised text-ink'
+              }`}
+            >
               {remainingBalance.toFixed(2)}
             </div>
           </div>
+          {priceBelowPaid && (
+            <div className="col-span-4" data-testid="price-below-paid-warning">
+              <BilingualText text={dictionary.repairs.priceBelowPaidHint} size="xs" className="text-danger" />
+            </div>
+          )}
         </div>
 
         <label className="flex flex-col gap-1">

@@ -71,6 +71,19 @@ export function assertNonEmpty(value: string | null | undefined, label: string):
 }
 
 /**
+ * Throws if a text value exceeds `max` characters — the non-bypassable backend
+ * mirror of the renderer's textLimits maxLength/zod .max() guards, so an
+ * enormous value can never be persisted even via a direct IPC call that skips
+ * the form. (Renderer can't share this module across the process boundary, so
+ * the limit is passed in by the caller rather than imported.)
+ */
+export function assertMaxLength(value: string | null | undefined, max: number, label: string): void {
+  if (value != null && value.length > max) {
+    throw new Error(`${label} is too long (maximum ${max} characters).`)
+  }
+}
+
+/**
  * Throws if a 'YYYY-MM-DD' date string is AFTER today (local). Used for
  * money-movement dates (payment/settlement) and expense date: money received
  * or spent can't be dated in the future. Empty/undefined is allowed — the

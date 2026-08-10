@@ -9,10 +9,15 @@ import {
   type UpdateCustomerInput
 } from '../db/repositories/customerRepository'
 import { RepairRepository } from '../db/repositories/repairRepository'
-import { assertValidMobilePhone, assertNonEmpty, hasLetter } from '../lib/validation'
+import { assertValidMobilePhone, assertNonEmpty, assertMaxLength, hasLetter } from '../lib/validation'
+
+// Mirrors the renderer's MAX_SHORT_TEXT (shared/lib/textLimits) — can't be
+// imported across the process boundary, so it's re-declared here.
+const MAX_NAME_LENGTH = 200
 
 function assertValidCustomerName(name: string): void {
   assertNonEmpty(name, 'Name')
+  assertMaxLength(name, MAX_NAME_LENGTH, 'Name')
   if (!hasLetter(name)) throw new Error('Name must contain letters, not just numbers or symbols.')
 }
 

@@ -118,7 +118,7 @@ export function BrandingSection() {
         </label>
         <label className="flex flex-col gap-1">
           <BilingualText text={dictionary.branding.currency} size="sm" className="text-ink-muted" />
-          <input type="text" value={form.currency} onChange={updateField('currency')} className={inputClass} />
+          <input type="text" maxLength={8} value={form.currency} onChange={updateField('currency')} className={inputClass} />
         </label>
         <label className="flex flex-col gap-1 sm:col-span-2">
           <BilingualText text={dictionary.branding.address} size="sm" className="text-ink-muted" />
