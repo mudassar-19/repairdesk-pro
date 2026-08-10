@@ -195,7 +195,15 @@ export function PosNewOrder() {
 
   return (
     <>
-      <div className="flex flex-1 gap-lg overflow-y-auto p-xl">
+      {/*
+        Exporting/printing the receipt rasterizes the whole renderer, not just
+        the ReceiptModal overlay — .no-print only hides the Sidebar/TopBar
+        chrome, so this POS form (still mounted behind the fixed-position modal)
+        would otherwise leak into the PDF above the actual receipt. Marking it
+        no-print whenever the receipt modal is open guarantees ONLY the
+        receipt's print-modal-overlay content reaches the output, on every
+        platform. Same fix RepairDetailPage already applies for its own page. */}
+      <div className={`flex flex-1 gap-lg overflow-y-auto p-xl${receiptRepair ? ' no-print' : ''}`}>
         {/* Order entry */}
         <div className="flex-1">
           <BilingualText text={dictionary.pos.newOrder} as="div" size="xl" className="mb-lg items-start" />

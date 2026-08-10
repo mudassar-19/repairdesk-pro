@@ -76,6 +76,22 @@
   --font-sans:
     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-urdu: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+  /*
+   * Mixed Latin + Urdu stack for free-text the user types (receipt
+   * header/footer), which can contain either script in one string. Latin
+   * still renders in the sans UI font; the key part is that the BUNDLED
+   * 'Noto Nastaliq Urdu' (whose @font-face unicode-range covers only
+   * Arabic-script codepoints) sits BEFORE every generic/system family, so
+   * Arabic characters resolve to the embedded webfont rather than to a
+   * platform Arabic fallback. That platform fallback is exactly what breaks
+   * on Windows PDF export: macOS substitutes a clean Urdu system font, but
+   * Windows' substitute isn't reliably embedded by printToPDF and comes out
+   * as tofu/garbled boxes. Dictionary labels already dodge this via
+   * font-urdu; this makes user-typed text just as safe.
+   */
+  --font-mixed:
+    'Inter', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   --text-xs: 0.8125rem;
   --text-sm: 0.9375rem;
@@ -123,6 +139,12 @@ body {
   .app-shell {
     height: auto !important;
     overflow: visible !important;
+  }
+  /* POS Mode's full-screen shell (outside AppLayout) paints its own gray app
+     background; drop it to white for print so nothing but the receipt shows on
+     the exported page. Its chrome (header/tabs) is already .no-print. */
+  .pos-shell {
+    background: #ffffff !important;
   }
   /* Page-break hygiene for multi-page reports: never split a table row across
      a page boundary, repeat table headers on each page, and keep a section

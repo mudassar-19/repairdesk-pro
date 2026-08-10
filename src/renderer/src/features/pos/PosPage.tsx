@@ -27,8 +27,16 @@ export function PosPage() {
   const logoSrc = logoDataUrl ?? repairdexLogo
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-bg">
-      <header className="flex flex-shrink-0 items-center justify-between gap-md border-b border-border bg-surface px-xl py-sm">
+    // POS Mode is its own full-screen route OUTSIDE AppLayout, so the print
+    // stylesheet's main/.app-shell resets don't reach it on their own. The
+    // only thing ever exported/printed from here is the receipt overlay, so:
+    // - app-shell + pos-shell: lift this shell's h-screen/overflow-hidden
+    //   clipping and drop its gray background for print, so a long receipt
+    //   flows in full onto a clean white page (see @media print in theme.css).
+    // - the header and tab switcher below are chrome (like the Sidebar/TopBar
+    //   elsewhere) and carry no-print so they never leak into the receipt PDF.
+    <div className="app-shell pos-shell flex h-screen w-screen flex-col overflow-hidden bg-bg">
+      <header className="no-print flex flex-shrink-0 items-center justify-between gap-md border-b border-border bg-surface px-xl py-sm">
         <div className="flex-1">
           <BilingualText text={dictionary.pos.title} as="div" size="lg" className="items-start" />
         </div>
@@ -50,13 +58,15 @@ export function PosPage() {
         </div>
       </header>
 
-      {/* Tab switcher */}
-      <div className="flex flex-shrink-0 gap-1 border-b border-border bg-surface px-xl">
+      {/* Tab switcher — chrome, never part of a printed receipt. */}
+      <div className="no-print flex flex-shrink-0 gap-1 border-b border-border bg-surface px-xl">
         <TabButton active={tab === 'new'} label={dictionary.pos.tabNewOrder} onClick={() => setTab('new')} />
         <TabButton active={tab === 'deliver'} label={dictionary.pos.tabDeliverOrder} onClick={() => setTab('deliver')} />
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* app-shell: same print overflow-lift as the outer shell, so the
+          receipt (dropped into normal flow for print) isn't clipped here. */}
+      <div className="app-shell flex flex-1 flex-col overflow-hidden">
         {tab === 'new' ? <PosNewOrder /> : <PosDeliverOrder />}
       </div>
     </div>

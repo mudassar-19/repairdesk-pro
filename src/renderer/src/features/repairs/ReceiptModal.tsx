@@ -111,7 +111,10 @@ export function ReceiptModal({ repair, customer, open, onClose }: ReceiptModalPr
             />
 
             {receiptSettings?.headerText.trim() && (
-              <div className="mb-sm text-center text-xs text-ink-muted">{receiptSettings.headerText}</div>
+              // font-mixed: user-typed text may contain Urdu — keep it on the
+              // bundled Nastaliq font so it embeds in the Windows PDF export
+              // instead of falling back to a system font that prints as tofu.
+              <div className="mb-sm text-center font-mixed text-xs text-ink-muted">{receiptSettings.headerText}</div>
             )}
 
             <div className="mb-sm text-center">
@@ -189,7 +192,10 @@ export function ReceiptModal({ repair, customer, open, onClose }: ReceiptModalPr
 
             <div className="border-t border-border pt-sm text-center">
               {receiptSettings?.footerText.trim() ? (
-                <p className="text-sm text-ink-muted">{receiptSettings.footerText}</p>
+                // font-mixed so a user-typed Urdu footer uses the bundled
+                // Nastaliq font and embeds correctly in the Windows PDF export
+                // (the dictionary fallback below already renders via font-urdu).
+                <p className="font-mixed text-sm text-ink-muted">{receiptSettings.footerText}</p>
               ) : (
                 <BilingualText text={dictionary.receipts.thankYou} size="sm" className="items-center text-ink-muted" />
               )}
