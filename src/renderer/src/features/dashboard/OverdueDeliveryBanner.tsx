@@ -3,14 +3,13 @@ import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { ExtendDateControl } from '@shared/components/ExtendDateControl'
 import { StatusBadge } from '@shared/components/StatusBadge'
+import { RepairStatusActions } from '@shared/components/RepairStatusActions'
 import { dictionary } from '@shared/i18n'
 import { logActivity } from '@shared/lib/activityLog'
 import { addDays, daysOverdue, daysOverdueLabel, diffDays, overdueDismissKey } from '@shared/lib/overdueReminders'
 import { formatLocalDate } from '@shared/lib/dateRangePresets'
 import { useDismissedBannersStore } from '@shared/hooks/useDismissedBannersStore'
-import { DeliverOnCreditModal } from '@features/repairs/DeliverOnCreditModal'
 import type { Repair, RepairWithCustomer } from '../../../../main/db/repositories/repairRepository'
-import type { DeliverOnCreditResult } from '../../../../main/db/services/deliveryService'
 
 const today = (): string => formatLocalDate(new Date())
 
@@ -33,7 +32,6 @@ export interface OverdueDeliveryBannerProps {
 export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBannerProps) {
   const [overdueRepairs, setOverdueRepairs] = useState<RepairWithCustomer[] | null>(null)
   const [extendingId, setExtendingId] = useState<string | null>(null)
-  const [creditFor, setCreditFor] = useState<RepairWithCustomer | null>(null)
   const dismissed = useDismissedBannersStore((state) => state.dismissed)
   const dismiss = useDismissedBannersStore((state) => state.dismiss)
 
@@ -45,31 +43,24 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
     setOverdueRepairs((current) => current?.filter((repair) => repair.id !== repairId) ?? current)
   }
 
-  // Part A: full-payment delivery (records the balance as paid + delivers).
-  const handleMarkDelivered = async (repair: RepairWithCustomer) => {
-    const result = await window.api.repairs.deliverWithFullPayment(repair.id)
-    onRepairChanged(result.repair)
-    removeFromList(repair.id)
-    logActivity({
-      actionType: 'status_change',
-      entityType: 'repair',
-      entityId: result.repair.id,
-      description: `Delivered (paid in full${result.payment ? ` ${result.payment.amount.toFixed(2)}` : ''}) via overdue delivery reminder`,
-      metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null, viaOverdueReminder: true }
-    })
-  }
-
-  const handleCreditDelivered = (repair: RepairWithCustomer, result: DeliverOnCreditResult) => {
-    setCreditFor(null)
-    onRepairChanged(result.repair)
-    removeFromList(repair.id)
-    logActivity({
-      actionType: 'status_change',
-      entityType: 'repair',
-      entityId: result.repair.id,
-      description: `Delivered on credit via overdue reminder${result.payment ? ` — paid ${result.payment.amount.toFixed(2)}` : ''}${result.udhaar ? `, ${result.udhaar.totalAmount.toFixed(2)} on udhaar` : ''}`,
-      metadata: { toStatus: 'delivered', paymentId: result.payment?.id ?? null, udhaarId: result.udhaar?.id ?? null, viaOverdueReminder: true }
-    })
+  /**
+   * All status/delivery/cancel actions now flow through the shared
+   * RepairStatusActions component (same as Dashboard rows, Repairs list and
+   * POS), so Cancel Order — and any future action — appears here automatically
+   * without a hand-maintained copy. This handler just keeps the banner in sync:
+   * once a repair is delivered or cancelled it's no longer an overdue-delivery,
+   * so drop it; otherwise (still pending/completed) update it in place so its
+   * status badge and available actions re-render. RepairStatusActions writes its
+   * own activity-log entries, so we don't duplicate them here.
+   */
+  const handleRepairChanged = (updated: Repair) => {
+    onRepairChanged(updated)
+    if (updated.status === 'delivered' || updated.status === 'cancelled') {
+      removeFromList(updated.id)
+      setExtendingId((current) => (current === updated.id ? null : current))
+    } else {
+      setOverdueRepairs((current) => current?.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)) ?? current)
+    }
   }
 
   const handleApplyExtension = async (repair: RepairWithCustomer, newDate: string) => {
@@ -149,14 +140,9 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
               </div>
               <div className="flex flex-shrink-0 items-center gap-sm">
                 <StatusBadge status={repair.status} />
-                <Button variant="primary" size="sm" onClick={() => void handleMarkDelivered(repair)}>
-                  <BilingualText text={dictionary.repairs.markDelivered} size="xs" align="center" />
-                </Button>
-                {repair.remainingBalance > 0 && (
-                  <Button variant="secondary" size="sm" onClick={() => setCreditFor(repair)}>
-                    <BilingualText text={dictionary.repairs.deliverOnCredit} size="xs" align="center" />
-                  </Button>
-                )}
+                {/* Shared component — identical status/deliver/credit/Cancel actions
+                    as every other repair surface, kept in sync automatically. */}
+                <RepairStatusActions repair={repair} onChanged={handleRepairChanged} compact stopRowClick />
                 <Button variant="ghost" size="sm" onClick={() => toggleExtend(repair)}>
                   <BilingualText text={dictionary.dashboard.extendDeliveryDate} size="xs" align="center" />
                 </Button>
@@ -176,17 +162,6 @@ export function OverdueDeliveryBanner({ onRepairChanged }: OverdueDeliveryBanner
           </div>
         ))}
       </div>
-
-      <DeliverOnCreditModal
-        open={creditFor !== null}
-        remaining={creditFor?.remainingBalance ?? 0}
-        onClose={() => setCreditFor(null)}
-        onConfirm={async ({ udhaarAmount, dueDate }) => {
-          if (!creditFor) return
-          const result = await window.api.repairs.deliverOnCredit({ repairId: creditFor.id, udhaarAmount, dueDate })
-          handleCreditDelivered(creditFor, result)
-        }}
-      />
     </div>
   )
 }

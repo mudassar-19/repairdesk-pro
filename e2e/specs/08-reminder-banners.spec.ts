@@ -37,8 +37,15 @@ test.describe.serial('Dashboard reminder banners', () => {
     const countBadgeBefore = await banner.locator('div.flex.items-center.gap-2 > span').last().innerText()
 
     const firstRow = banner.locator('div.flex.flex-wrap.items-center.justify-between.gap-md.px-lg.py-md').first()
-    // "Mark as Delivered" now records the full remaining balance as a payment
-    // and delivers in one step — no track-as-Udhaar prompt any more.
+    // The banner now uses the SHARED RepairStatusActions, so it follows the
+    // standard pending→completed→delivered flow. A pending overdue row shows
+    // "Mark as Completed" first; advance it (row stays, still overdue) then it
+    // re-renders with "Mark as Delivered".
+    const markCompleted = firstRow.getByRole('button', { name: 'Mark as Completed' })
+    if ((await markCompleted.count()) > 0) {
+      await markCompleted.click()
+    }
+    // "Mark as Delivered" records the full remaining balance as a payment and delivers in one step.
     await firstRow.getByRole('button', { name: 'Mark as Delivered' }).click()
 
     await expect(async () => {
@@ -46,6 +53,27 @@ test.describe.serial('Dashboard reminder banners', () => {
       expect(Number(countBadgeAfter)).toBeLessThan(Number(countBadgeBefore))
     }).toPass({ timeout: 5_000 })
     await shoot(window, '08-overdue-delivery-after-mark-delivered')
+  })
+
+  test('Overdue Delivery Reminder: Cancel Order is now available via the shared actions menu', async () => {
+    const banner = window.locator('[data-testid="overdue-delivery-banner"]')
+    await expect(banner).toBeVisible()
+    const countBadgeBefore = await banner.locator('div.flex.items-center.gap-2 > span').last().innerText()
+
+    const firstRow = banner.locator('div.flex.flex-wrap.items-center.justify-between.gap-md.px-lg.py-md').first()
+    // Cancel Order lives in the shared "More actions" menu — proof the refactor
+    // makes it appear here automatically, no hand-maintained banner button.
+    await firstRow.getByRole('button', { name: 'More actions' }).click()
+    const cancelItem = window.getByRole('menuitem', { name: 'Cancel Order' })
+    await expect(cancelItem).toBeVisible()
+    await cancelItem.click()
+
+    // Cancelling drops the repair from the overdue list (no longer awaiting delivery).
+    await expect(async () => {
+      const countBadgeAfter = await banner.locator('div.flex.items-center.gap-2 > span').last().innerText()
+      expect(Number(countBadgeAfter)).toBeLessThan(Number(countBadgeBefore))
+    }).toPass({ timeout: 5_000 })
+    await shoot(window, '08-overdue-delivery-after-cancel')
   })
 
   test('Overdue Udhaar Reminder: Extend Due Date updates the row', async () => {

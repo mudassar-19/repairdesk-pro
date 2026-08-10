@@ -37,10 +37,25 @@ export function registerUdhaarIpc(): void {
     (_event, repairId: string): Udhaar[] => new UdhaarRepository(getDatabase()).findByRepairId(repairId)
   )
 
-  ipcMain.handle(
-    'udhaar:update',
-    (_event, id: string, patch: UpdateUdhaarInput): Udhaar | null => new UdhaarRepository(getDatabase()).update(id, patch)
-  )
+  ipcMain.handle('udhaar:update', (_event, id: string, patch: UpdateUdhaarInput): Udhaar | null => {
+    const repo = new UdhaarRepository(getDatabase())
+    if (patch.personName !== undefined) assertNonEmpty(patch.personName, 'Person name')
+    if (patch.personPhone) assertValidMobilePhone(patch.personPhone)
+    if (patch.totalAmount !== undefined) {
+      assertPositiveAmount(patch.totalAmount, 'Udhaar amount')
+      const existing = repo.findById(id)
+      if (existing) {
+        // A linked entry's amount is bound to its repair — never editable here,
+        // even via a direct IPC call (the form also locks it).
+        if (existing.repairId) throw new Error('A repair-linked Udhaar amount cannot be edited.')
+        // Never drop the total below what's already been settled.
+        if (patch.totalAmount < existing.amountSettled) {
+          throw new Error('Udhaar amount cannot be less than what has already been settled.')
+        }
+      }
+    }
+    return repo.update(id, patch)
+  })
 
   ipcMain.handle('udhaar:softDelete', (_event, id: string): Udhaar | null => new UdhaarRepository(getDatabase()).softDelete(id))
 

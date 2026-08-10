@@ -12,6 +12,7 @@ import { ExpensesPage } from '@features/expenses/ExpensesPage'
 import { ExpenseFormPage } from '@features/expenses/ExpenseFormPage'
 import { UdhaarPage } from '@features/udhaar/UdhaarPage'
 import { AddUdhaarPage } from '@features/udhaar/AddUdhaarPage'
+import { EditUdhaarPage } from '@features/udhaar/EditUdhaarPage'
 import { ReportsPage } from '@features/reports/ReportsPage'
 import { AnalyticsPage } from '@features/analytics/AnalyticsPage'
 import { ActivityTimelinePage } from '@features/activity/ActivityTimelinePage'
@@ -45,8 +46,10 @@ export function AppRoutes() {
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/expenses/new" element={<ExpenseFormPage />} />
+        <Route path="/expenses/:id/edit" element={<ExpenseFormPage />} />
         <Route path="/udhaar" element={<UdhaarPage />} />
         <Route path="/udhaar/new" element={<AddUdhaarPage />} />
+        <Route path="/udhaar/:id/edit" element={<EditUdhaarPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/activity" element={<ActivityTimelinePage />} />

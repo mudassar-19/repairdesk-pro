@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { BilingualText } from '@shared/components/BilingualText'
 import { Button } from '@shared/components/Button'
 import { dictionary } from '@shared/i18n'
@@ -60,8 +60,12 @@ const isKnownCategory = (category: string): category is ExpenseCategory =>
 
 export function ExpenseFormPage() {
   const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>()
+  const isEdit = Boolean(id)
   const prefill = (useLocation().state as ExpensePrefill | null) ?? null
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(isEdit)
+  const [loadError, setLoadError] = useState(false)
 
   // A recurring draft may target a built-in category or a custom one.
   const prefillIsCustom = Boolean(prefill?.category) && !isKnownCategory(prefill!.category!)
@@ -70,6 +74,7 @@ export function ExpenseFormPage() {
     register,
     handleSubmit,
     watch,
+    reset,
     formState: { errors, isSubmitting }
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -84,38 +89,95 @@ export function ExpenseFormPage() {
     }
   })
 
+  // Edit mode: load the existing expense and prefill the form. A custom category
+  // (not one of the built-in values) maps back to the "Custom…" option.
+  useEffect(() => {
+    if (!id) return
+    window.api.expenses.getById(id).then((expense) => {
+      if (!expense) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
+      const custom = !isKnownCategory(expense.category)
+      reset({
+        category: custom ? CUSTOM_SENTINEL : expense.category,
+        customCategory: custom ? expense.category : '',
+        amount: String(expense.amount),
+        description: expense.description ?? '',
+        expenseDate: expense.expenseDate,
+        isRecurring: expense.isRecurring
+      })
+      setLoading(false)
+    })
+  }, [id, reset])
+
   const categoryValue = watch('category')
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null)
     const category = values.category === CUSTOM_SENTINEL ? values.customCategory!.trim() : values.category
+    const payload = {
+      category,
+      amount: Number(values.amount),
+      description: values.description?.trim() || null,
+      expenseDate: values.expenseDate,
+      isRecurring: values.isRecurring,
+      // recurringMonth is no longer captured — "recurring" now simply means
+      // "repeats every month" (Part K#20); the auto-draft finds it by flag.
+      recurringMonth: null
+    }
 
     try {
-      const created = await window.api.expenses.create({
-        category,
-        amount: Number(values.amount),
-        description: values.description?.trim() || null,
-        expenseDate: values.expenseDate,
-        isRecurring: values.isRecurring,
-        // recurringMonth is no longer captured — "recurring" now simply means
-        // "repeats every month" (Part K#20); the auto-draft finds it by flag.
-        recurringMonth: null
-      })
-      logActivity({
-        actionType: 'create',
-        entityType: 'expense',
-        entityId: created.id,
-        description: `Expense logged: ${category} — ${created.amount.toFixed(2)}`
-      })
+      if (isEdit && id) {
+        const updated = await window.api.expenses.update(id, payload)
+        if (!updated) {
+          setSubmitError('Could not save expense. Please try again.')
+          return
+        }
+        logActivity({
+          actionType: 'update',
+          entityType: 'expense',
+          entityId: updated.id,
+          description: `Expense updated: ${category} — ${updated.amount.toFixed(2)}`
+        })
+      } else {
+        const created = await window.api.expenses.create(payload)
+        logActivity({
+          actionType: 'create',
+          entityType: 'expense',
+          entityId: created.id,
+          description: `Expense logged: ${category} — ${created.amount.toFixed(2)}`
+        })
+      }
       navigate('/expenses', { replace: true })
     } catch {
       setSubmitError('Could not save expense. Please try again.')
     }
   })
 
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <BilingualText text={dictionary.common.loading} size="sm" className="items-center text-ink-muted" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
+        <BilingualText text={dictionary.expenses.notFound} as="div" size="lg" align="center" />
+        <Button variant="ghost" onClick={() => navigate('/expenses')}>
+          <BilingualText text={dictionary.repairs.backToList} size="sm" align="center" />
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex max-w-lg flex-1 flex-col">
-      <BilingualText text={dictionary.expenses.addNew} as="div" size="xl" className="mb-xl" />
+      <BilingualText text={isEdit ? dictionary.expenses.editExpense : dictionary.expenses.addNew} as="div" size="xl" className="mb-xl" />
 
       <form
         onSubmit={onSubmit}

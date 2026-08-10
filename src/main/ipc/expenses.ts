@@ -41,10 +41,14 @@ export function registerExpensesIpc(): void {
     return repo().create(input)
   })
 
-  ipcMain.handle(
-    'expenses:update',
-    (_event, id: string, patch: UpdateExpenseInput): Expense | null => repo().update(id, patch)
-  )
+  ipcMain.handle('expenses:update', (_event, id: string, patch: UpdateExpenseInput): Expense | null => {
+    // Same non-bypassable guards as create, applied only to the fields present in
+    // the patch, so an edit can never persist an invalid category/amount/date.
+    if (patch.category !== undefined) assertNonEmpty(patch.category, 'Category')
+    if (patch.amount !== undefined) assertPositiveAmount(patch.amount, 'Expense amount')
+    if (patch.expenseDate !== undefined) assertNotFutureDate(patch.expenseDate, 'Expense date')
+    return repo().update(id, patch)
+  })
 
   ipcMain.handle('expenses:softDelete', (_event, id: string): Expense | null => repo().softDelete(id))
 }
